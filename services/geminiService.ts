@@ -291,26 +291,38 @@ export const generateAudioForScene = async (text: string) => {
  */
 export const splitSubtitleByMeaning = async (
   narration: string,
-  maxChars: number = 22
+  maxChars: number = 20
 ): Promise<string[]> => {
   return retryGeminiRequest("Subtitle Split", async () => {
     const ai = getAI();
 
-    const prompt = `당신은 자막 편집 전문가입니다.
-아래 나레이션을 자막용으로 분리해주세요.
+    const prompt = `자막 분리 작업입니다. 원문을 청크로 나누세요.
 
-## 규칙
-1. 의미가 통하는 단위로 분리 (문장 중간에 어색하게 끊지 않기)
-2. 각 청크는 반드시 ${maxChars}자 이하
-3. 쉼표, 조사, 접속사 등 자연스러운 끊김 포인트 활용
-4. 원문의 단어를 그대로 유지 (수정/생략 금지)
-5. 모든 텍스트가 빠짐없이 포함되어야 함
+###### 🚨 절대 금지 사항 (위반 시 실패) ######
+- 띄어쓰기 추가 금지: "자막나오는거" → "자막 나오는 거" ❌
+- 띄어쓰기 삭제 금지: "역대 최고치" → "역대최고치" ❌
+- 맞춤법 교정 금지: 틀린 맞춤법도 그대로 유지
+- 어떤 글자도 변경/추가/삭제 금지
+################################################
 
-## 나레이션
+## 검증 방법
+청크를 그대로 이어붙이면 원문과 글자 하나 틀리지 않고 완전히 같아야 함.
+"${narration}".split('').join('') === chunks.join('').split('').join('')
+
+## 자막 분리 규칙
+1. 각 청크는 15~20자 (최대 ${maxChars}자)
+2. 1초당 4-5글자, 최소 1.5초 = 최소 6~8글자
+3. 의미 단위로 자연스럽게 끊기
+
+## 끊는 위치
+✅ 좋은 위치: 쉼표(,) 뒤, 마침표(.) 뒤, 조사 뒤 공백
+❌ 나쁜 위치: 단어 중간, 숫자 내 쉼표(4,200), 조사 앞
+
+## 원문 (이것을 정확히 분리)
 ${narration}
 
-## 출력 형식
-JSON 배열로 출력. 예: ["첫 번째 청크", "두 번째 청크", ...]`;
+## 출력
+JSON 배열만 출력. 예: ["청크1", "청크2"]`;
 
     const response = await ai.models.generateContent({
       model: "gemini-2.0-flash",
@@ -322,16 +334,18 @@ JSON 배열로 출력. 예: ["첫 번째 청크", "두 번째 청크", ...]`;
 
     const chunks = JSON.parse(cleanJsonResponse(response.text));
 
-    // 유효성 검증: 원문 복원 확인
-    const reconstructed = chunks.join('').replace(/\s+/g, '');
-    const original = narration.replace(/\s+/g, '');
+    // 유효성 검증: 원문 복원 확인 (띄어쓰기 포함)
+    const reconstructed = chunks.join('');
 
-    if (reconstructed !== original) {
-      console.warn('[Subtitle Split] 원문과 청크 불일치, 폴백 사용');
+    if (reconstructed !== narration) {
+      console.warn(`[Subtitle Split] 원문과 청크 불일치!`);
+      console.warn(`  원문: "${narration}"`);
+      console.warn(`  복원: "${reconstructed}"`);
       // 폴백: 단순 길이 기반 분리
       return fallbackSplit(narration, maxChars);
     }
 
+    console.log(`[Subtitle Split] AI 분리 성공: ${chunks.length}개 청크`);
     return chunks;
   }, 2, 1000);
 };

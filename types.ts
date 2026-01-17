@@ -102,3 +102,57 @@ export enum GenerationStep {
   COMPLETED = 'COMPLETED',
   ERROR = 'ERROR'
 }
+
+// 비용 추적
+export interface CostBreakdown {
+  images: number;      // 이미지 생성 비용
+  tts: number;         // TTS 비용
+  videos: number;      // 영상 생성 비용
+  total: number;       // 총 비용
+  imageCount: number;  // 생성된 이미지 수
+  ttsCharacters: number; // TTS 글자 수
+  videoCount: number;  // 생성된 영상 수
+}
+
+// 프로젝트 설정 저장용 타입
+export interface ProjectSettings {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+
+  // 이미지 모델 설정
+  imageModel: string;
+  fluxStyle: string;
+  fluxCustomStyle: string;
+  fluxCharacter: string;
+
+  // TTS 설정
+  elevenLabsVoiceId: string;
+  elevenLabsModel: string;
+}
+
+// 생성된 콘텐츠 포함 저장 프로젝트
+export interface SavedProject {
+  id: string;
+  name: string;
+  createdAt: number;
+  topic: string;  // 생성 키워드/주제
+
+  // 설정
+  settings: {
+    imageModel: string;
+    fluxStyle: string;
+    fluxCharacter: string;
+    elevenLabsModel: string;
+  };
+
+  // 생성된 콘텐츠 (전체 에셋 저장)
+  assets: GeneratedAsset[];
+
+  // 썸네일 (첫 번째 이미지 축소)
+  thumbnail: string | null;
+
+  // 비용 정보 (선택적 - 이전 버전 호환)
+  cost?: CostBreakdown;
+}

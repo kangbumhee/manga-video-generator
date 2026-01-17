@@ -81,15 +81,16 @@ function convertToWords(
 
 /**
  * AI 의미 단위 분리 + 단어 타이밍 매핑
- * - AI가 분리한 청크와 ElevenLabs 단어 타이밍을 매핑
+ * - Gemini AI로 의미 단위 분리
+ * - 분리된 청크와 ElevenLabs 단어 타이밍을 매핑
  * - 각 청크의 시작/끝 시간 계산
  */
 async function createMeaningChunks(
   fullText: string,
   words: SubtitleWord[]
 ): Promise<MeaningChunk[]> {
-  // AI로 의미 단위 분리 (한 줄 기준 25자 이하)
-  const textChunks = await splitSubtitleByMeaning(fullText, 25);
+  // AI 기반 의미 단위 분리
+  const textChunks = await splitSubtitleByMeaning(fullText, 20);
 
   if (textChunks.length === 0 || words.length === 0) {
     return [];
@@ -223,7 +224,7 @@ export const generateAudioWithElevenLabs = async (
           console.log(`[ElevenLabs] AI 의미 단위 분리 완료: ${meaningChunks.length}개 청크`);
         }
       } catch (e) {
-        console.warn('[ElevenLabs] AI 자막 분리 실패, 기본 방식 사용:', e);
+        console.warn('[ElevenLabs] AI 자막 분리 실패, 단어 기반 방식 사용:', e);
       }
     }
 

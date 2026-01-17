@@ -3,17 +3,23 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Header from './components/Header';
 import InputSection from './components/InputSection';
 import ResultTable from './components/ResultTable';
-import { GeneratedAsset, GenerationStep, ScriptScene } from './types';
-import { generateScript, generateImageForScene, findTrendingTopics, generateAudioForScene, generateMotionPrompt } from './services/geminiService';
+import { GeneratedAsset, GenerationStep, ScriptScene, CostBreakdown } from './types';
+import { generateScript, findTrendingTopics, generateAudioForScene, generateMotionPrompt } from './services/geminiService';
+import { generateImage, getSelectedImageModel } from './services/imageService';
 import { generateAudioWithElevenLabs } from './services/elevenLabsService';
 import { generateVideo, VideoGenerationResult } from './services/videoService';
 import { downloadSrtFromRecorded } from './services/srtService';
 import { generateVideoFromImage, getFalApiKey } from './services/falService';
-import { CONFIG } from './config';
+import { saveProject, getSavedProjects, deleteProject } from './services/projectService';
+import { SavedProject } from './types';
+import { CONFIG, PRICING, formatKRW } from './config';
+import ProjectGallery from './components/ProjectGallery';
 import * as FileSaver from 'file-saver';
 
 const saveAs = (FileSaver as any).saveAs || (FileSaver as any).default || FileSaver;
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+type ViewMode = 'main' | 'gallery';
 
 const App: React.FC = () => {
   const [step, setStep] = useState<GenerationStep>(GenerationStep.IDLE);
@@ -23,7 +29,19 @@ const App: React.FC = () => {
   const [currentReferenceImages, setCurrentReferenceImages] = useState<string[]>([]);
   const [needsKey, setNeedsKey] = useState(false);
   const [animatingIndices, setAnimatingIndices] = useState<Set<number>>(new Set());
-  
+
+  // 갤러리 뷰 관련
+  const [viewMode, setViewMode] = useState<ViewMode>('main');
+  const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
+  const [currentTopic, setCurrentTopic] = useState<string>('');
+
+  // 비용 추적
+  const [currentCost, setCurrentCost] = useState<CostBreakdown | null>(null);
+  const costRef = useRef<CostBreakdown>({
+    images: 0, tts: 0, videos: 0, total: 0,
+    imageCount: 0, ttsCharacters: 0, videoCount: 0
+  });
+
   const usedTopicsRef = useRef<string[]>([]);
   const assetsRef = useRef<GeneratedAsset[]>([]);
   const isAbortedRef = useRef(false);
@@ -40,8 +58,15 @@ const App: React.FC = () => {
 
   useEffect(() => {
     checkApiKeyStatus();
+    // 저장된 프로젝트 로드
+    setSavedProjects(getSavedProjects());
     return () => { isAbortedRef.current = true; };
   }, [checkApiKeyStatus]);
+
+  // 프로젝트 목록 새로고침
+  const refreshProjects = useCallback(() => {
+    setSavedProjects(getSavedProjects());
+  }, []);
 
   const handleOpenKeySelector = async () => {
     if ((window as any).aistudio) {
@@ -56,6 +81,31 @@ const App: React.FC = () => {
       assetsRef.current[index] = { ...assetsRef.current[index], ...updates };
       setGeneratedData([...assetsRef.current]);
     }
+  };
+
+  // 비용 추가 헬퍼
+  const addCost = (type: 'image' | 'tts' | 'video', amount: number, count: number = 1) => {
+    if (type === 'image') {
+      costRef.current.images += amount;
+      costRef.current.imageCount += count;
+    } else if (type === 'tts') {
+      costRef.current.tts += amount;
+      costRef.current.ttsCharacters += count;
+    } else if (type === 'video') {
+      costRef.current.videos += amount;
+      costRef.current.videoCount += count;
+    }
+    costRef.current.total = costRef.current.images + costRef.current.tts + costRef.current.videos;
+    setCurrentCost({ ...costRef.current });
+  };
+
+  // 비용 초기화
+  const resetCost = () => {
+    costRef.current = {
+      images: 0, tts: 0, videos: 0, total: 0,
+      imageCount: 0, ttsCharacters: 0, videoCount: 0
+    };
+    setCurrentCost(null);
   };
 
   const handleAbort = () => {
@@ -86,7 +136,9 @@ const App: React.FC = () => {
       setGeneratedData([]);
       assetsRef.current = [];
       setCurrentReferenceImages(refImgs);
-      
+      setCurrentTopic(topic); // 저장용 토픽 기록
+      resetCost(); // 비용 초기화
+
       let targetTopic = topic;
 
       if (topic === "Manual Script Input" && sourceText) {
@@ -130,6 +182,9 @@ const App: React.FC = () => {
                       subtitleData: elResult.subtitleData,
                       audioDuration: elResult.estimatedDuration
                     });
+                    // TTS 비용 추가
+                    const charCount = assetsRef.current[i].narration.length;
+                    addCost('tts', charCount * PRICING.TTS.perCharacter, charCount);
                   } else {
                     // ElevenLabs 실패 시 Gemini 폴백 (자막 없음)
                     const fallbackAudio = await generateAudioForScene(assetsRef.current[i].narration);
@@ -141,30 +196,34 @@ const App: React.FC = () => {
 
       const runImages = async () => {
           const MAX_RETRIES = 2; // 최대 재시도 횟수
-          
+          const imageModel = getSelectedImageModel();
+          const imagePrice = PRICING.IMAGE[imageModel as keyof typeof PRICING.IMAGE] || 0.01;
+
           for (let i = 0; i < initialAssets.length; i++) {
               if (isAbortedRef.current) break;
               updateAssetAt(i, { status: 'generating' });
-              
+
               let success = false;
               let lastError: any = null;
-              
+
               // 재시도 로직 (최초 시도 + 재시도)
               for (let attempt = 0; attempt <= MAX_RETRIES && !success; attempt++) {
                   if (isAbortedRef.current) break;
-                  
+
                   try {
                       if (attempt > 0) {
                           setProgressMessage(`씬 ${i + 1} 이미지 재생성 시도 중... (${attempt}/${MAX_RETRIES})`);
                           await wait(2000); // 재시도 전 대기
                       }
-                      
+
                       // Scene 객체 전체를 넘겨서 prompts.ts가 분석 정보를 활용하도록 함
-                      const img = await generateImageForScene(assetsRef.current[i], refImgs);
+                      const img = await generateImage(assetsRef.current[i], refImgs);
                       if (isAbortedRef.current) break;
-                      
+
                       if (img) {
                           updateAssetAt(i, { imageData: img, status: 'completed' });
+                          // 이미지 비용 추가
+                          addCost('image', imagePrice, 1);
                           success = true;
                       } else {
                           throw new Error('이미지 데이터가 비어있습니다');
@@ -250,7 +309,20 @@ const App: React.FC = () => {
       
       if (isAbortedRef.current) return;
       setStep(GenerationStep.COMPLETED);
-      setProgressMessage("V9.2 시스템 모든 에셋 생성 완료!");
+
+      // 비용 요약 메시지 (원화)
+      const cost = costRef.current;
+      const costMsg = `이미지 ${cost.imageCount}장 ${formatKRW(cost.images)} + TTS ${cost.ttsCharacters}자 ${formatKRW(cost.tts)} = 총 ${formatKRW(cost.total)}`;
+      setProgressMessage(`생성 완료! ${costMsg}`);
+
+      // 자동 저장 (비용 정보 포함)
+      try {
+        const savedProject = await saveProject(targetTopic, assetsRef.current, undefined, costRef.current);
+        refreshProjects();
+        setProgressMessage(`"${savedProject.name}" 저장됨 | ${costMsg}`);
+      } catch (e) {
+        console.error('프로젝트 자동 저장 실패:', e);
+      }
 
     } catch (error: any) {
       if (!isAbortedRef.current) {
@@ -260,7 +332,7 @@ const App: React.FC = () => {
     } finally {
       isProcessingRef.current = false;
     }
-  }, [checkApiKeyStatus]);
+  }, [checkApiKeyStatus, refreshProjects]);
 
   const triggerVideoExport = async (enableSubtitles: boolean = true) => {
     if (isVideoGenerating) return;
@@ -288,10 +360,64 @@ const App: React.FC = () => {
     }
   };
 
+  // 프로젝트 삭제 핸들러
+  const handleDeleteProject = (id: string) => {
+    deleteProject(id);
+    refreshProjects();
+  };
+
+  // 프로젝트 불러오기 핸들러
+  const handleLoadProject = (project: SavedProject) => {
+    // 저장된 에셋을 현재 상태로 로드
+    assetsRef.current = project.assets;
+    setGeneratedData([...project.assets]);
+    setCurrentTopic(project.topic);
+    setStep(GenerationStep.COMPLETED);
+    setProgressMessage(`"${project.name}" 프로젝트 불러옴`);
+    setViewMode('main'); // 메인 뷰로 전환
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200">
       <Header />
-      
+
+      {/* 네비게이션 탭 */}
+      <div className="border-b border-slate-800">
+        <div className="max-w-7xl mx-auto px-4 flex items-center gap-1">
+          <button
+            onClick={() => setViewMode('main')}
+            className={`px-4 py-3 text-sm font-bold transition-colors relative ${
+              viewMode === 'main'
+                ? 'text-brand-400'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            스토리보드 생성
+            {viewMode === 'main' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-500" />
+            )}
+          </button>
+          <button
+            onClick={() => setViewMode('gallery')}
+            className={`px-4 py-3 text-sm font-bold transition-colors relative flex items-center gap-2 ${
+              viewMode === 'gallery'
+                ? 'text-brand-400'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            저장된 프로젝트
+            {savedProjects.length > 0 && (
+              <span className="px-1.5 py-0.5 bg-slate-700 text-xs rounded-full">
+                {savedProjects.length}
+              </span>
+            )}
+            {viewMode === 'gallery' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-500" />
+            )}
+          </button>
+        </div>
+      </div>
+
       {needsKey && (
         <div className="bg-amber-500/10 border-b border-amber-500/20 py-2 px-4 flex items-center justify-center gap-4 animate-in fade-in slide-in-from-top-4">
           <span className="text-amber-400 text-xs font-bold">Gemini 3 Pro 엔진을 위해 API 키 설정이 필요합니다.</span>
@@ -299,6 +425,19 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* 갤러리 뷰 */}
+      {viewMode === 'gallery' && (
+        <ProjectGallery
+          projects={savedProjects}
+          onBack={() => setViewMode('main')}
+          onDelete={handleDeleteProject}
+          onRefresh={refreshProjects}
+          onLoad={handleLoadProject}
+        />
+      )}
+
+      {/* 메인 뷰 */}
+      {viewMode === 'main' && (
       <main className="py-8">
         <InputSection onGenerate={handleGenerate} step={step} />
         
@@ -336,11 +475,15 @@ const App: React.FC = () => {
                     await wait(2000);
                   }
                   
-                  const img = await generateImageForScene(assetsRef.current[idx], currentReferenceImages);
+                  const img = await generateImage(assetsRef.current[idx], currentReferenceImages);
                   
                   if (img && !isAbortedRef.current) {
                     updateAssetAt(idx, { imageData: img, status: 'completed' });
-                    setProgressMessage(`씬 ${idx + 1} 이미지 재생성 완료!`);
+                    // 이미지 비용 추가
+                    const imageModel = getSelectedImageModel();
+                    const imagePrice = PRICING.IMAGE[imageModel as keyof typeof PRICING.IMAGE] || 0.01;
+                    addCost('image', imagePrice, 1);
+                    setProgressMessage(`씬 ${idx + 1} 이미지 재생성 완료! (+${formatKRW(imagePrice)})`);
                     success = true;
                   } else if (!img) {
                     throw new Error('이미지 데이터가 비어있습니다');
@@ -398,7 +541,9 @@ const App: React.FC = () => {
                     videoData: videoUrl,
                     videoDuration: CONFIG.ANIMATION.VIDEO_DURATION
                   });
-                  setProgressMessage(`씬 ${idx + 1} 영상 변환 완료!`);
+                  // 영상 비용 추가
+                  addCost('video', PRICING.VIDEO.perVideo, 1);
+                  setProgressMessage(`씬 ${idx + 1} 영상 변환 완료! (+${formatKRW(PRICING.VIDEO.perVideo)})`);
                 } else {
                   setProgressMessage(`씬 ${idx + 1} 영상 변환 실패`);
                 }
@@ -416,6 +561,7 @@ const App: React.FC = () => {
             }}
         />
       </main>
+      )}
     </div>
   );
 };
