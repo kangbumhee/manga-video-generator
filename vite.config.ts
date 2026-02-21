@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => {
           }
         }
       ],
-      base: '/manga-video-generator/',
+      base: './',
       build: {
         outDir: 'dist',
         rollupOptions: {
