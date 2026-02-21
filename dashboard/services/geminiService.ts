@@ -931,14 +931,20 @@ JSON 배열만 출력. 예: ["청크1", "청크2"]`;
     const chunks = JSON.parse(cleanJsonResponse(responseText));
     const reconstructed = chunks.join('');
 
-    if (reconstructed !== narration) {
-      console.warn(`[Subtitle Split] 원문과 청크 불일치!`);
+    // 공백 차이만 있는 경우 AI 결과를 그대로 사용 (공백 무시 비교)
+    const normalize = (s: string) => s.replace(/\s+/g, '');
+    if (normalize(reconstructed) !== normalize(narration)) {
+      console.warn(`[Subtitle Split] 원문과 청크 불일치! (내용 자체가 다름)`);
       console.warn(`  원문: "${narration}"`);
       console.warn(`  복원: "${reconstructed}"`);
       return fallbackSplit(narration, maxChars);
     }
 
-    console.log(`[Subtitle Split] AI 분리 성공: ${chunks.length}개 청크`);
+    if (reconstructed !== narration) {
+      console.log(`[Subtitle Split] AI 분리 성공 (공백 미세 차이 허용): ${chunks.length}개 청크`);
+    } else {
+      console.log(`[Subtitle Split] AI 분리 성공: ${chunks.length}개 청크`);
+    }
     return chunks;
   }, 2, 1000);
 };

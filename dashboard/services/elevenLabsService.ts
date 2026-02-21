@@ -97,35 +97,50 @@ async function createMeaningChunks(
   }
 
   const meaningChunks: MeaningChunk[] = [];
+
+  // 문자 기반 매핑: 각 청크의 non-space 문자 수로 단어 경계 결정
+  // AI 청크와 ElevenLabs 단어 간 단어 수 불일치에 강건
   let wordIndex = 0;
+  let charInWordConsumed = 0;
 
   for (const chunkText of textChunks) {
-    // 청크에 포함된 단어 수 계산 (공백 제거 후 비교)
-    const chunkWords = chunkText.split(/\s+/).filter(w => w.length > 0);
-    const chunkWordCount = chunkWords.length;
+    const chunkChars = chunkText.replace(/\s+/g, '').length;
+    if (chunkChars === 0) continue;
 
-    if (chunkWordCount === 0) continue;
-
-    // 시작 인덱스 저장
     const startWordIndex = wordIndex;
+    let charsRemaining = chunkChars;
 
-    // 청크에 해당하는 단어들 찾기
-    let matchedWords = 0;
-    while (wordIndex < words.length && matchedWords < chunkWordCount) {
-      matchedWords++;
-      wordIndex++;
+    while (charsRemaining > 0 && wordIndex < words.length) {
+      const wordLen = words[wordIndex].word.length;
+      const availableInWord = wordLen - charInWordConsumed;
+
+      if (charsRemaining >= availableInWord) {
+        charsRemaining -= availableInWord;
+        charInWordConsumed = 0;
+        wordIndex++;
+      } else {
+        charInWordConsumed += charsRemaining;
+        charsRemaining = 0;
+      }
     }
 
-    // 매칭된 단어가 있으면 청크 생성
     if (startWordIndex < words.length) {
-      const endWordIndex = Math.min(wordIndex - 1, words.length - 1);
+      const endWordIndex = Math.min(
+        charInWordConsumed > 0 ? wordIndex : Math.max(startWordIndex, wordIndex - 1),
+        words.length - 1
+      );
 
       meaningChunks.push({
         text: chunkText,
         startTime: words[startWordIndex].start,
-        endTime: words[endWordIndex].end
+        endTime: words[Math.max(startWordIndex, endWordIndex)].end
       });
     }
+  }
+
+  // 남은 단어가 있으면 마지막 청크의 endTime을 연장
+  if (meaningChunks.length > 0 && wordIndex < words.length) {
+    meaningChunks[meaningChunks.length - 1].endTime = words[words.length - 1].end;
   }
 
   // 청크 간 간격 제거: endTime을 다음 청크의 startTime까지 연장
