@@ -41,8 +41,8 @@ export default defineConfig(({ mode }) => {
         }
       },
       define: {
-        'process.env.API_KEY': JSON.stringify(''),
-        'process.env.GEMINI_API_KEY': JSON.stringify(''),
+        'process.env.API_KEY': JSON.stringify(env.API_KEY || ''),
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || ''),
         'process.env.FAL_API_KEY': JSON.stringify(env.FAL_API_KEY || ''),
         'process.env.ELEVENLABS_API_KEY': JSON.stringify(env.ELEVENLABS_API_KEY || ''),
         'process.env.ELEVENLABS_VOICE_ID': JSON.stringify(env.ELEVENLABS_VOICE_ID || '')

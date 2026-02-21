@@ -82,13 +82,8 @@ const ProjectGallery: React.FC<ProjectGalleryProps> = ({
           <div className="flex flex-wrap items-center gap-4 text-sm">
             <span className="text-slate-400">{formatDate(selectedProject.createdAt)}</span>
             <span className="px-3 py-1 bg-slate-800 rounded-full text-slate-300">
-              {selectedProject.settings.imageModel?.includes('flux') ? 'Flux' : 'Gemini'}
+              {selectedProject.settings.imageModel?.includes('flux') ? 'Flux' : selectedProject.settings.imageModel?.includes('seedream') ? 'SeeDream' : 'Gemini'}
             </span>
-            {selectedProject.settings.imageModel?.includes('flux') && (
-              <span className="px-3 py-1 bg-slate-800 rounded-full text-slate-300">
-                {selectedProject.settings.fluxStyle}
-              </span>
-            )}
             <span className="px-3 py-1 bg-slate-800 rounded-full text-slate-300">
               {selectedProject.settings.elevenLabsModel}
             </span>
@@ -279,13 +274,6 @@ const ProjectGallery: React.FC<ProjectGalleryProps> = ({
                   ) : (
                     <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] font-bold rounded">
                       Gemini
-                    </span>
-                  )}
-
-                  {/* Flux 화풍 (Flux일 때만) */}
-                  {project.settings.imageModel?.includes('flux') && project.settings.fluxStyle && (
-                    <span className="px-2 py-0.5 bg-slate-700 text-slate-300 text-[10px] rounded">
-                      {project.settings.fluxStyle === 'custom' ? '커스텀' : project.settings.fluxStyle}
                     </span>
                   )}
 
