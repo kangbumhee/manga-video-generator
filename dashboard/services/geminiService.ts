@@ -301,10 +301,11 @@ export const findTrendingTopics = async (category: string, usedTopics: string[])
 
   if (config.mode === 'apiyi') {
     console.log('[findTrendingTopics] APIYI 경로 진입');
+    const scriptModel = typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_script_model') || 'gemini-2.5-flash' : 'gemini-2.5-flash';
     return retryGeminiRequest("Trend Search", async () => {
       const prompt = getTrendSearchPrompt(category, usedTopics.join(", "));
       const result = await chatCompletionViaApiyi(
-        'gemini-2.5-flash',
+        scriptModel,
         SYSTEM_INSTRUCTIONS.TREND_RESEARCHER,
         prompt,
         { jsonMode: true }
@@ -368,8 +369,9 @@ const generateScriptSingle = async (
     let responseText: string;
 
     if (config.mode === 'apiyi') {
+      const scriptModel = typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_script_model') || 'gemini-2.5-flash' : 'gemini-2.5-flash';
       responseText = await chatCompletionViaApiyi(
-        'gemini-2.5-flash',
+        scriptModel,
         baseInstruction,
         userPromptStr,
         { maxTokens: maxOutputTokens, jsonMode: true }
@@ -672,20 +674,40 @@ export const generateImageForScene = async (
         console.log('[generateImageForScene] 모드:', config.mode);
 
         if (config.mode === 'apiyi') {
-          // APIYI: OpenAI 호환 이미지 생성 (dall-e-3) - 참조 이미지는 미지원
+          // APIYI: OpenAI 호환 이미지 생성 - 참조 이미지는 미지원
+          const imageModel = typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_image_model_apiyi') || 'gpt-image-1' : 'gpt-image-1';
+          const imageQuality = typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_image_quality') || 'low' : 'low';
+
+          const isGptImage = imageModel === 'gpt-image-1' || imageModel === 'gpt-image-1.5';
+          const isSeedreamOrGemini = imageModel === 'seedream-4-5-251128' || imageModel === 'gemini-2.5-flash-image-preview';
+
+          const body: Record<string, unknown> = {
+            model: imageModel,
+            prompt: sanitizedPrompt,
+            n: 1,
+          };
+
+          if (isSeedreamOrGemini) {
+            body.size = '1024x1024';
+          } else if (isGptImage) {
+            body.size = '1536x1024';
+            body.quality = imageQuality;
+            body.output_format = 'png';
+            body.output_compression = 0;
+          } else {
+            body.size = '1536x1024';
+            body.quality = imageQuality;
+            body.output_format = 'png';
+            body.output_compression = 0;
+          }
+
           const response = await fetch(`${config.baseUrl}/images/generations`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${config.apiKey}`,
             },
-            body: JSON.stringify({
-              model: 'dall-e-3',
-              prompt: sanitizedPrompt,
-              n: 1,
-              size: '1792x1024',
-              response_format: 'b64_json',
-            }),
+            body: JSON.stringify(body),
           });
 
           if (!response.ok) {

@@ -182,6 +182,11 @@ const App: React.FC = () => {
         return;
       }
 
+      const elKey = typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_el_key') : null;
+      if (!elKey) {
+        console.warn('[App] ElevenLabs API 키 미설정 - 음성 품질이 저하될 수 있습니다');
+      }
+
       setStep(GenerationStep.SCRIPTING);
       setProgressMessage('V9.2 Ultra 엔진 부팅 중...');
 

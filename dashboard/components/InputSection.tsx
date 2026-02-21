@@ -4,6 +4,31 @@ import { GenerationStep, ProjectSettings, ReferenceImages, DEFAULT_REFERENCE_IMA
 import { CONFIG, ELEVENLABS_MODELS, ElevenLabsModelId, IMAGE_MODELS, ImageModelId, GEMINI_STYLE_CATEGORIES, GeminiStyleId, ELEVENLABS_DEFAULT_VOICES, VoiceGender } from '../config';
 import { getElevenLabsModelId, setElevenLabsModelId, fetchElevenLabsVoices, ElevenLabsVoice } from '../services/elevenLabsService';
 
+type QualityPreset = {
+  id: string;
+  name: string;
+  emoji: string;
+  scriptModel: string;
+  imageModel: string;
+  imageQuality: string;
+  videoMode: 'none' | 'partial' | 'full';
+  videoModel: string;
+  videoSceneCount: number;
+  estimatedCost: string;
+  description: string;
+};
+
+const QUALITY_PRESETS: QualityPreset[] = [
+  { id: 'ultra-budget', name: '극한 절약', emoji: '💰', scriptModel: 'gemini-2.5-flash-lite', imageModel: 'gpt-image-1', imageQuality: 'low', videoMode: 'none', videoModel: '', videoSceneCount: 0, estimatedCost: '~113원', description: '정적 이미지만, 최저가' },
+  { id: 'budget-static', name: '가성비 정적', emoji: '⚡', scriptModel: 'gemini-2.5-flash', imageModel: 'gpt-image-1', imageQuality: 'low', videoMode: 'none', videoModel: '', videoSceneCount: 0, estimatedCost: '~255원', description: '가성비 이미지, 영상변환 없음' },
+  { id: 'static-hd', name: '고화질 정적', emoji: '🎨', scriptModel: 'gemini-2.5-flash', imageModel: 'seedream-4-5-251128', imageQuality: 'standard', videoMode: 'none', videoModel: '', videoSceneCount: 0, estimatedCost: '~776원', description: '4K 이미지, 텍스트 렌더링 우수' },
+  { id: 'partial-video', name: '부분 영상', emoji: '🎬', scriptModel: 'gemini-2.5-flash', imageModel: 'gpt-image-1', imageQuality: 'low', videoMode: 'partial', videoModel: 'sora-2', videoSceneCount: 5, estimatedCost: '~3,880원', description: '핵심 5씬만 움직이는 영상' },
+  { id: 'partial-video-hq', name: '부분 영상 고급', emoji: '✨', scriptModel: 'gemini-2.5-flash', imageModel: 'gpt-image-1.5', imageQuality: 'medium', videoMode: 'partial', videoModel: 'sora-2-pro', videoSceneCount: 5, estimatedCost: '~11,760원', description: '고품질 이미지 + Pro 영상 5씬' },
+  { id: 'full-video', name: '전체 영상', emoji: '🎥', scriptModel: 'gemini-2.5-flash', imageModel: 'gpt-image-1', imageQuality: 'low', videoMode: 'full', videoModel: 'sora-2', videoSceneCount: 15, estimatedCost: '~11,130원', description: '전체 씬 움직이는 영상' },
+  { id: 'full-video-hq', name: '전체 영상 고급', emoji: '🏆', scriptModel: 'gemini-3-flash-preview', imageModel: 'seedream-4-5-251128', imageQuality: 'standard', videoMode: 'full', videoModel: 'sora-2-pro', videoSceneCount: 15, estimatedCost: '~33,400원', description: '4K 이미지 + Pro 영상 전체' },
+  { id: 'premium', name: '풀 프리미엄', emoji: '👑', scriptModel: 'gemini-3-pro-preview', imageModel: 'gpt-image-1', imageQuality: 'high', videoMode: 'full', videoModel: 'sora-2-pro', videoSceneCount: 15, estimatedCost: '~58,000원', description: '최고 퀄리티, 1080p 시네마틱' },
+];
+
 // Gemini 스타일 맵
 const GEMINI_STYLE_MAP = new Map<string, { id: string; name: string; category: string; prompt: string }>();
 GEMINI_STYLE_CATEGORIES.forEach(category => {
@@ -21,6 +46,7 @@ const InputSection: React.FC<InputSectionProps> = ({ onGenerate, step }) => {
   const [activeTab, setActiveTab] = useState<'auto' | 'manual'>('auto');
   const [topic, setTopic] = useState('');
   const [manualScript, setManualScript] = useState('');
+  const [selectedPreset, setSelectedPreset] = useState<string>('budget-static');
 
   // 참조 이미지 상태 분리 (캐릭터/스타일)
   const [characterRefImages, setCharacterRefImages] = useState<string[]>([]);
@@ -58,6 +84,32 @@ const InputSection: React.FC<InputSectionProps> = ({ onGenerate, step }) => {
   const styleFileInputRef = useRef<HTMLInputElement>(null);
   const voiceDropdownRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // 프리셋 선택 시 localStorage에 저장
+  const handlePresetChange = useCallback((presetId: string) => {
+    setSelectedPreset(presetId);
+    const preset = QUALITY_PRESETS.find(x => x.id === presetId);
+    if (preset) {
+      localStorage.setItem('tubegen_script_model', preset.scriptModel);
+      localStorage.setItem('tubegen_image_model_apiyi', preset.imageModel);
+      localStorage.setItem('tubegen_image_quality', preset.imageQuality);
+      localStorage.setItem('tubegen_video_mode', preset.videoMode);
+      localStorage.setItem('tubegen_video_model', preset.videoModel);
+      localStorage.setItem('tubegen_video_scene_count', String(preset.videoSceneCount));
+    }
+  }, []);
+
+  // 프리셋 localStorage 복원
+  useEffect(() => {
+    const saved = localStorage.getItem('tubegen_video_mode');
+    if (saved) {
+      const m = localStorage.getItem('tubegen_image_model_apiyi');
+      const q = localStorage.getItem('tubegen_image_quality');
+      const vm = localStorage.getItem('tubegen_video_mode');
+      const found = QUALITY_PRESETS.find(p => p.imageModel === m && p.imageQuality === q && p.videoMode === vm);
+      if (found) setSelectedPreset(found.id);
+    }
+  }, []);
 
   // 컴포넌트 마운트 시 저장된 설정 로드
   useEffect(() => {
@@ -426,6 +478,45 @@ const InputSection: React.FC<InputSectionProps> = ({ onGenerate, step }) => {
           TubeGen <span className="text-brand-500">Studio</span>
         </h1>
         <p className="text-slate-400 text-sm font-medium uppercase tracking-widest">졸라맨 V10.0 Concept-Based Engine</p>
+      </div>
+
+      {/* 퀄리티 프리셋 선택 */}
+      <div className="mb-6">
+        <h3 className="text-sm font-bold text-slate-400 mb-3">🎛️ 퀄리티 프리셋</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {QUALITY_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => handlePresetChange(preset.id)}
+              className={`p-3 rounded-xl border text-left transition-all ${
+                selectedPreset === preset.id
+                  ? 'border-brand-500 bg-brand-500/10 ring-1 ring-brand-500/30'
+                  : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-lg">{preset.emoji}</span>
+                <span className="text-xs font-bold text-white">{preset.name}</span>
+              </div>
+              <div className="text-[10px] text-slate-400 mb-1">{preset.description}</div>
+              <div className="text-xs font-bold text-brand-400">{preset.estimatedCost}</div>
+            </button>
+          ))}
+        </div>
+        {(() => {
+          const p = QUALITY_PRESETS.find(x => x.id === selectedPreset);
+          if (!p) return null;
+          return (
+            <div className="mt-3 p-3 bg-slate-800/50 rounded-xl border border-slate-700 text-xs text-slate-400 flex flex-wrap gap-x-6 gap-y-1">
+              <span>📝 스크립트: <strong className="text-slate-300">{p.scriptModel}</strong></span>
+              <span>🖼️ 이미지: <strong className="text-slate-300">{p.imageModel} ({p.imageQuality})</strong></span>
+              <span>🎬 영상: <strong className="text-slate-300">{p.videoMode === 'none' ? '변환 없음' : `${p.videoModel} ${p.videoSceneCount}씬`}</strong></span>
+              <span>🎤 음성: <strong className="text-slate-300">ElevenLabs (항상 사용)</strong></span>
+              <span>💵 예상 비용: <strong className="text-brand-400">{p.estimatedCost}</strong></span>
+            </div>
+          );
+        })()}
       </div>
 
       <div className="mb-4 flex flex-col gap-4">
