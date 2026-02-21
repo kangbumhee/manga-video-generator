@@ -216,8 +216,10 @@ const App: React.FC = () => {
         setProgressMessage(`글로벌 경제 트렌드 탐색 중...`);
         const trends = await findTrendingTopics(topic, usedTopicsRef.current);
         if (isAbortedRef.current) return;
-        targetTopic = trends[0].topic;
-        usedTopicsRef.current.push(targetTopic);
+        // topic + reason(상세설명)을 함께 전달해 스크립트 생성 시 풍부한 맥락 제공
+        const first = trends[0];
+        targetTopic = first.reason ? `${first.topic}\n\n${first.reason}` : first.topic;
+        usedTopicsRef.current.push(first.topic);
       }
 
       setProgressMessage(`스토리보드 및 메타포 생성 중...`);

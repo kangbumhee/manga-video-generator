@@ -77,6 +77,8 @@ const InputSection: React.FC<InputSectionProps> = ({ onGenerate, step }) => {
   const [projects, setProjects] = useState<ProjectSettings[]>([]);
   const [showProjectManager, setShowProjectManager] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
+  // 퀄리티 프리셋 접기/펼치기 (기본: 접힌 상태)
+  const [isPresetOpen, setIsPresetOpen] = useState(false);
 
   // ElevenLabs 설정 상태
   const [showElevenLabsSettings, setShowElevenLabsSettings] = useState(false);
@@ -494,7 +496,28 @@ const InputSection: React.FC<InputSectionProps> = ({ onGenerate, step }) => {
 
       {/* 퀄리티 프리셋 선택 */}
       <div className="mb-6">
-        <h3 className="text-sm font-bold text-slate-400 mb-3">🎛️ 퀄리티 프리셋</h3>
+        <button
+          type="button"
+          onClick={() => setIsPresetOpen(!isPresetOpen)}
+          className="w-full flex items-center justify-between text-left mb-3"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-slate-400">🎛️ 퀄리티 프리셋</span>
+            {(() => {
+              const p = QUALITY_PRESETS.find(x => x.id === selectedPreset);
+              if (p && !isPresetOpen) {
+                return (
+                  <span className="text-xs text-slate-500">
+                    {p.emoji} {p.name} ({p.estimatedCost})
+                  </span>
+                );
+              }
+              return null;
+            })()}
+          </div>
+          <span className="text-slate-500 text-xs">{isPresetOpen ? '▼' : '▶'}</span>
+        </button>
+        {isPresetOpen && (
         <div className="space-y-4">
           {PRESET_CATEGORIES.map((cat) => (
             <div key={cat.label}>
@@ -527,6 +550,7 @@ const InputSection: React.FC<InputSectionProps> = ({ onGenerate, step }) => {
             </div>
           ))}
         </div>
+        )}
         {(() => {
           const p = QUALITY_PRESETS.find(x => x.id === selectedPreset);
           if (!p) return null;

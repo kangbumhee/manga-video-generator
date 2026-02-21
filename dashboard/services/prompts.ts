@@ -43,7 +43,7 @@ export const SYSTEM_INSTRUCTIONS = {
 - MACRO (60-80%): 캐릭터 클로즈업
 `,
 
-  TREND_RESEARCHER: `최신 경제 뉴스/트렌드를 발굴하는 리서처입니다.`,
+  TREND_RESEARCHER: `최신 경제 뉴스/트렌드를 발굴하는 리서처입니다. 각 트렌드에 대해 제목(20자 이내)과 상세 설명(100자 이상)을 반드시 포함하세요.`,
 
   MANUAL_VISUAL_MATCHER: `
 대본을 시각화하는 전문가입니다.
@@ -102,21 +102,44 @@ ${VAR_MOOD_ENFORCER}
 
 // 트렌드 검색 프롬프트
 export const getTrendSearchPrompt = (category: string, _usedTopicsString: string) =>
-  `Search for 4 trending "${category}" topics. Return JSON: [{rank, topic, reason}]`;
+  `Search for 4 trending "${category}" topics. For each topic include:
+- rank: 순위
+- topic: 제목 (20자 이내, 짧게)
+- reason: 상세 설명 (100자 이상, 스크립트 생성에 활용할 풍부한 맥락)
+Return JSON: [{rank, topic, reason}]`;
 
 // 스크립트 생성 프롬프트
 export const getScriptGenerationPrompt = (topic: string, sourceContext?: string | null) => {
   const isManual = !!sourceContext;
   const content = sourceContext || topic;
 
-  return `
-# Task: Generate Storyboard for "${topic}"
-
-## 씬 분할 규칙
+  const sceneRuleBlock = isManual
+    ? `## 씬 분할 규칙 (수동 대본)
 - 1문장 = 1씬 (기본)
 - 입력 문장 수 = 출력 씬 수
-- 같은 내용 반복 금지
-- ⚠️ narration 필드: 입력된 대본 문장을 그대로 복사해서 사용 (절대 "나레이션"이라고 쓰지 말것)
+- 원문 수정 금지, 씬 분할만 수행
+- ⚠️ narration 필드: 입력된 대본 문장을 그대로 복사 (절대 "나레이션"이라고 쓰지 말것)`
+    : `## 씬 수 규칙 (자동/트렌드 주제)
+- **반드시 8~15개의 씬(장면)**을 생성하세요
+- 주제가 짧더라도 (예: "경제트렌드") 관련 내용을 풍부하게 확장하여 8씬 이상 만드세요
+- 도입(1~2씬) → 전개(4~8씬) → 절정(1~2씬) → 마무리(1~2씬) 구조를 따르세요
+- 단일 씬으로 끝내지 마세요. 반드시 여러 씬으로 나누어 스토리를 전개하세요
+- 각 씬의 narration은 최소 50자 이상이어야 합니다`;
+
+  return `
+# Task: 유튜브 만화 영상 스토리보드 생성
+
+당신은 유튜브 만화 영상 시나리오 작가입니다.
+주어진 주제를 바탕으로 **반드시 8~15개의 씬(장면)**으로 구성된 스토리보드를 만들어야 합니다.
+
+${sceneRuleBlock}
+
+## 각 씬 필수 항목
+- sceneNumber: 순번
+- narration: 한국어 나레이션 (2~4문장, 50~150자)
+- image_prompt_english: 영어 이미지 생성 프롬프트 (상세한 장면 묘사)
+- visual_keywords: 이미지에 표시할 텍스트
+- analysis: { sentiment, composition_type }
 
 ## 시각화
 - 문장 의미를 그대로 이미지화
@@ -131,8 +154,6 @@ export const getScriptGenerationPrompt = (topic: string, sourceContext?: string 
 - 주어가 사람 → STANDARD
 - 주어가 데이터 → NO_CHAR
 
-${isManual ? '[수동 대본] 원문 수정 금지, 씬 분할만' : ''}
-
 [입력]
 ${content}
 
@@ -140,18 +161,19 @@ ${content}
 {
   "scenes": [{
     "sceneNumber": 1,
-    "narration": "입력된 대본 문장을 여기에 그대로 복사",
-    "visual_keywords": "이미지에 표시할 텍스트 (없으면 빈 문자열)",
+    "narration": "한국어 나레이션 (50자 이상)",
+    "visual_keywords": "이미지에 표시할 텍스트",
     "analysis": {
-      "sentiment": "POSITIVE 또는 NEGATIVE 또는 NEUTRAL 중 하나",
-      "composition_type": "MICRO 또는 STANDARD 또는 MACRO 또는 NO_CHAR 중 하나"
+      "sentiment": "POSITIVE 또는 NEGATIVE 또는 NEUTRAL",
+      "composition_type": "MICRO 또는 STANDARD 또는 MACRO 또는 NO_CHAR"
     },
     "image_prompt_english": "씬을 묘사하는 영문 프롬프트"
   }]
 }
 
 ### 중요 ###
-- narration: 입력 텍스트의 각 문장을 그대로 사용할 것!
-- "나레이션"이라는 단어를 출력하면 안됨
+- 최소 8개 씬, 최대 15개 씬을 생성하세요
+- narration에 "나레이션"이라는 단어를 출력하지 마세요
+- JSON 배열로만 응답하세요. 다른 텍스트 없이 JSON만 출력하세요
 `;
 };

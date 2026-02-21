@@ -350,18 +350,28 @@ const generateScriptSingle = async (
                             hasReferenceImage ? SYSTEM_INSTRUCTIONS.REFERENCE_MATCH :
                             SYSTEM_INSTRUCTIONS.CHIEF_ART_DIRECTOR;
 
-    const userPrompt = getScriptGenerationPrompt(topic, sourceContext);
+    // 입력이 짧을 때 자동 확장 프롬프트 추가 (sourceContext 없을 때만)
+    let contentForPrompt = sourceContext || topic;
+    if (!sourceContext && topic.length < 50) {
+      contentForPrompt = `"${topic}" 주제에 대해 시청자의 흥미를 끌 수 있는 다양한 측면을 다루는 8~15개 씬의 유튜브 만화 영상 스토리보드를 만들어주세요. 도입부에서 주제를 소개하고, 중반부에서 핵심 내용을 여러 각도에서 설명하고, 마지막에 인사이트와 결론을 제시하세요.`;
+    }
+    // sourceContext가 있으면 수동 모드(1문장=1씬), 없으면 자동/트렌드 모드(8~15씬) + contentForPrompt 사용
+    const userPrompt = sourceContext
+      ? getScriptGenerationPrompt(topic, sourceContext)
+      : getScriptGenerationPrompt(contentForPrompt, null);
     const userPromptStr = typeof userPrompt === 'string' ? userPrompt : JSON.stringify(userPrompt);
 
-    const inputText = sourceContext || topic;
+    const inputText = contentForPrompt;
     const inputLength = inputText.length;
     const sentences = inputText.split(/[.!?。]+/).filter(s => s.trim().length > 0);
     const sentenceCount = Math.max(1, sentences.length);
-    const estimatedSceneCount = inputLength < 200
+    const rawEstimatedScenes = inputLength < 200
       ? sentenceCount
       : Math.max(sentenceCount, Math.ceil(inputLength / 80));
+    const estimatedSceneCount = Math.max(8, rawEstimatedScenes);
     const calculatedTokens = Math.ceil(estimatedSceneCount * 800 * 1.5);
-    const maxOutputTokens = Math.min(65536, Math.max(16384, calculatedTokens));
+    const minTokens = 32768;
+    const maxOutputTokens = Math.min(65536, Math.max(minTokens, Math.max(16384, calculatedTokens)));
 
     const chunkLabel = chunkInfo ? `[청크 ${chunkInfo.current}/${chunkInfo.total}] ` : '';
     console.log(`${chunkLabel}[Script] 입력: ${inputLength}자, 예상 씬: ${estimatedSceneCount}개, maxOutputTokens: ${maxOutputTokens}`);
@@ -396,12 +406,36 @@ const generateScriptSingle = async (
     }
 
     const result = JSON.parse(cleanJsonResponse(responseText));
-    const scenes = Array.isArray(result) ? result : (result.scenes || []);
+    let scenes = Array.isArray(result) ? result : (result.scenes || []);
 
     console.log(`${chunkLabel}[Script] 생성된 씬 개수: ${scenes.length}`);
 
     if (scenes.length < 3) {
-      console.warn(`${chunkLabel}[Warning] 씬이 ${scenes.length}개만 생성됨. 대본이 제대로 분할되지 않았을 수 있음.`);
+      console.warn(`${chunkLabel}[Script] ${scenes.length}개 씬만 생성됨, 재시도...`);
+      const retryContent = `반드시 8개 이상의 씬을 만들어주세요. 절대 1~3개 씬으로 끝내지 마세요.\n\n원래 주제:\n${contentForPrompt}`;
+      const retryPrompt = getScriptGenerationPrompt(retryContent, null);
+      const retryPromptStr = typeof retryPrompt === 'string' ? retryPrompt : JSON.stringify(retryPrompt);
+      let retryText: string;
+      if (config.mode === 'apiyi') {
+        const scriptModel = typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_script_model') || 'gemini-2.5-flash' : 'gemini-2.5-flash';
+        retryText = await chatCompletionViaApiyi(scriptModel, baseInstruction, retryPromptStr, { maxTokens: maxOutputTokens, jsonMode: true });
+      } else {
+        const ai = getAI();
+        const retryRes = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: retryPrompt,
+          config: { thinkingConfig: { thinkingBudget: 24576 }, responseMimeType: "application/json", systemInstruction: baseInstruction, maxOutputTokens },
+        });
+        retryText = retryRes.text || '[]';
+      }
+      const retryResult = JSON.parse(cleanJsonResponse(retryText));
+      const retryScenes = Array.isArray(retryResult) ? retryResult : (retryResult.scenes || []);
+      if (retryScenes.length > scenes.length) {
+        console.log(`${chunkLabel}[Script] 재시도 성공: ${retryScenes.length}개 씬`);
+        scenes = retryScenes;
+      } else {
+        console.warn(`${chunkLabel}[Warning] 씬이 ${scenes.length}개만 생성됨. 대본이 제대로 분할되지 않았을 수 있음.`);
+      }
     }
 
     return scenes.map((scene: any, idx: number) => ({
