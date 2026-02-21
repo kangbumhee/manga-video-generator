@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
 import { GeneratedAsset, CostBreakdown } from '../types';
 import { downloadProjectZip } from '../utils/csvHelper';
@@ -6,6 +5,9 @@ import { downloadSrt } from '../services/srtService';
 import { exportAssetsToZip } from '../services/exportService';
 import { getImageModelCost, getVideoModelCost, formatKRW, PRICING } from '../config';
 
+// ============================================================
+// 타입 정의
+// ============================================================
 interface ResultTableProps {
   data: GeneratedAsset[];
   currentCost?: CostBreakdown | null;
@@ -17,12 +19,13 @@ interface ResultTableProps {
   animatingIndices?: Set<number>;
 }
 
-// 오디오 디코딩 함수 (컴포넌트 외부로 이동하여 재생성 방지)
+// ============================================================
+// 유틸: 오디오 디코딩 (컴포넌트 외부)
+// ============================================================
 async function decodeAudio(base64: string, ctx: AudioContext): Promise<AudioBuffer> {
   const binaryString = atob(base64);
   const bytes = new Uint8Array(binaryString.length);
   for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
-
   try {
     return await ctx.decodeAudioData(bytes.buffer.slice(0));
   } catch (e) {
@@ -37,7 +40,19 @@ async function decodeAudio(base64: string, ctx: AudioContext): Promise<AudioBuff
   }
 }
 
-// 이미지 Lazy Loading 컴포넌트 (Intersection Observer 사용)
+// ============================================================
+// 유틸: 씬별 비용 계산
+// ============================================================
+function getSceneCost(row: GeneratedAsset): { image: number; tts: number; video: number; total: number } {
+  const image = row.imageData ? getImageModelCost() : 0;
+  const tts = row.audioData ? row.narration.length * PRICING.TTS.perCharacter : 0;
+  const video = row.videoData ? getVideoModelCost() : 0;
+  return { image, tts, video, total: image + tts + video };
+}
+
+// ============================================================
+// 컴포넌트 1: LazyImage
+// ============================================================
 const LazyImage: React.FC<{
   src: string;
   alt: string;
@@ -55,13 +70,9 @@ const LazyImage: React.FC<{
           observer.disconnect();
         }
       },
-      { rootMargin: '100px' } // 100px 전에 미리 로드
+      { rootMargin: '100px' }
     );
-
-    if (imgRef.current) {
-      observer.observe(imgRef.current);
-    }
-
+    if (imgRef.current) observer.observe(imgRef.current);
     return () => observer.disconnect();
   }, []);
 
@@ -81,10 +92,11 @@ const LazyImage: React.FC<{
     </div>
   );
 });
-
 LazyImage.displayName = 'LazyImage';
 
-// 오디오 플레이어 메모이제이션 (props가 같으면 리렌더 방지)
+// ============================================================
+// 컴포넌트 2: AudioPlayer
+// ============================================================
 const AudioPlayer: React.FC<{ base64: string }> = memo(({ base64 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -107,12 +119,11 @@ const AudioPlayer: React.FC<{ base64: string }> = memo(({ base64 }) => {
     try {
       setIsPlaying(true);
       if (!audioContextRef.current) {
-        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        audioContextRef.current = new AudioContextClass();
+        const AC = window.AudioContext || (window as any).webkitAudioContext;
+        audioContextRef.current = new AC();
       }
       const ctx = audioContextRef.current;
       if (ctx.state === 'suspended') await ctx.resume();
-      
       const audioBuffer = await decodeAudio(base64, ctx);
       const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
@@ -120,27 +131,302 @@ const AudioPlayer: React.FC<{ base64: string }> = memo(({ base64 }) => {
       source.onended = () => setIsPlaying(false);
       source.start();
       sourceRef.current = source;
-    } catch (error) { console.error(error); setIsPlaying(false); }
+    } catch (error) {
+      console.error(error);
+      setIsPlaying(false);
+    }
   };
 
   return (
     <button onClick={playAudio} className={`p-2.5 rounded-full border transition-all ${isPlaying ? 'bg-brand-600 border-brand-500 text-white animate-pulse' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'}`}>
-      {isPlaying ? <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> : <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>}
+      {isPlaying
+        ? <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        : <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      }
     </button>
   );
 });
-
 AudioPlayer.displayName = 'AudioPlayer';
 
-// 씬별 비용 계산
-function getSceneCost(row: GeneratedAsset): { image: number; tts: number; video: number; total: number } {
-  const image = row.imageData ? getImageModelCost() : 0;
-  const tts = row.audioData ? row.narration.length * PRICING.TTS.perCharacter : 0;
-  const video = row.videoData ? getVideoModelCost() : 0;
-  return { image, tts, video, total: image + tts + video };
+// ============================================================
+// 컴포넌트 3: PreviewModal  ★ ResultTable 바깥에서 독립 정의 ★
+// ============================================================
+interface PreviewModalProps {
+  assets: GeneratedAsset[];
+  onClose: () => void;
 }
 
-// 테이블 행 컴포넌트 (개별 행 메모이제이션으로 리렌더 최소화)
+const PreviewModal: React.FC<PreviewModalProps> = ({ assets, onClose }) => {
+  const validAssets = assets.filter(a => a.imageData);
+  const [idx, setIdx] = useState(0);
+  const [playing, setPlaying] = useState(false);
+
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playingRef = useRef(false);
+
+  // playing state를 ref로 동기화 (onended 콜백 클로저 문제 방지)
+  useEffect(() => {
+    playingRef.current = playing;
+  }, [playing]);
+
+  const stopAll = () => {
+    if (sourceNodeRef.current) {
+      try { sourceNodeRef.current.stop(); } catch {}
+      sourceNodeRef.current = null;
+    }
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const playSceneAt = async (sceneIdx: number) => {
+    stopAll();
+
+    if (sceneIdx >= validAssets.length) {
+      setPlaying(false);
+      setIdx(0);
+      return;
+    }
+
+    setIdx(sceneIdx);
+    const asset = validAssets[sceneIdx];
+    let duration = 3;
+
+    if (asset.audioData) {
+      try {
+        if (!audioCtxRef.current) {
+          const AC = window.AudioContext || (window as any).webkitAudioContext;
+          audioCtxRef.current = new AC();
+        }
+        const ctx = audioCtxRef.current;
+        if (ctx.state === 'suspended') await ctx.resume();
+
+        const audioBuffer = await decodeAudio(asset.audioData, ctx);
+        duration = audioBuffer.duration;
+
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(ctx.destination);
+        source.onended = () => {
+          sourceNodeRef.current = null;
+          if (playingRef.current) {
+            playSceneAt(sceneIdx + 1);
+          }
+        };
+        source.start();
+        sourceNodeRef.current = source;
+        return;
+      } catch (e) {
+        console.warn('[Preview] 오디오 재생 실패, 타이머 폴백:', e);
+      }
+    }
+
+    timerRef.current = setTimeout(() => {
+      if (playingRef.current) {
+        playSceneAt(sceneIdx + 1);
+      }
+    }, duration * 1000);
+  };
+
+  const handlePlayPauseRef = useRef<() => void>(() => {});
+  const handlePlayPause = () => {
+    if (playing) {
+      setPlaying(false);
+      stopAll();
+    } else {
+      setPlaying(true);
+      playSceneAt(idx);
+    }
+  };
+  handlePlayPauseRef.current = handlePlayPause;
+
+  const goTo = (newIdx: number) => {
+    const clamped = Math.max(0, Math.min(validAssets.length - 1, newIdx));
+    stopAll();
+    setPlaying(false);
+    setIdx(clamped);
+  };
+
+  // ESC 키로 닫기, 방향키/스페이스바
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft') setIdx(prev => Math.max(0, prev - 1));
+      if (e.key === 'ArrowRight') setIdx(prev => Math.min(validAssets.length - 1, prev + 1));
+      if (e.key === ' ') { e.preventDefault(); handlePlayPauseRef.current(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose, validAssets.length]);
+
+  // 언마운트 시 정리
+  useEffect(() => {
+    return () => {
+      stopAll();
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
+        audioCtxRef.current = null;
+      }
+    };
+  }, []);
+
+  if (validAssets.length === 0) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center" onClick={onClose}>
+        <div className="text-white text-lg">생성된 이미지가 없습니다.</div>
+      </div>
+    );
+  }
+
+  const current = validAssets[idx];
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-4" onClick={onClose}>
+      <div className="relative w-full max-w-5xl" onClick={e => e.stopPropagation()}>
+
+        {/* 닫기 버튼 */}
+        <button onClick={onClose} className="absolute -top-12 right-0 text-slate-400 hover:text-white text-sm font-bold transition-colors flex items-center gap-1">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          닫기 (ESC)
+        </button>
+
+        {/* 메인 뷰어 */}
+        <div className="aspect-video bg-black rounded-2xl overflow-hidden relative border border-slate-800 shadow-2xl">
+          {current?.videoData ? (
+            <video
+              key={`preview-video-${idx}`}
+              src={current.videoData}
+              className="w-full h-full object-contain"
+              autoPlay loop muted playsInline
+            />
+          ) : current?.imageData ? (
+            <img
+              key={`preview-img-${idx}`}
+              src={`data:image/jpeg;base64,${current.imageData}`}
+              className="w-full h-full object-contain"
+              alt={`씬 ${idx + 1}`}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full text-slate-500">이미지 없음</div>
+          )}
+
+          {/* 나레이션 자막 */}
+          {current?.narration && (
+            <div className="absolute bottom-6 left-4 right-4 text-center pointer-events-none">
+              <span className="inline-block bg-black/80 text-white text-sm leading-relaxed px-5 py-2.5 rounded-xl max-w-[90%]" style={{ wordBreak: 'keep-all' }}>
+                {current.narration}
+              </span>
+            </div>
+          )}
+
+          {/* 씬 번호 뱃지 */}
+          <div className="absolute top-4 left-4 flex items-center gap-2">
+            <span className="bg-brand-600/90 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+              씬 {idx + 1} / {validAssets.length}
+            </span>
+            {current?.videoData && (
+              <span className="bg-cyan-600/90 text-white text-[10px] font-bold px-2 py-1 rounded-lg uppercase">영상</span>
+            )}
+            {playing && (
+              <span className="bg-green-600/90 text-white text-[10px] font-bold px-2 py-1 rounded-lg animate-pulse">재생 중</span>
+            )}
+          </div>
+
+          {/* 좌우 화살표 */}
+          {idx > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); goTo(idx - 1); }}
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center text-white transition-all opacity-0 hover:opacity-100"
+              style={{ opacity: undefined }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '0.3')}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
+          {idx < validAssets.length - 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); goTo(idx + 1); }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center text-white transition-all"
+              onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '0.3')}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* 프로그레스 바 */}
+        <div className="mt-3 flex gap-1">
+          {validAssets.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goTo(i)}
+              className={`h-1.5 flex-1 rounded-full transition-all cursor-pointer ${
+                i === idx ? 'bg-brand-500' : i < idx ? 'bg-brand-500/40' : 'bg-slate-700'
+              }`}
+            />
+          ))}
+        </div>
+
+        {/* 컨트롤 바 */}
+        <div className="flex items-center justify-center gap-3 mt-4">
+          <button
+            onClick={() => goTo(0)}
+            className="px-3 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-700 transition-all"
+            title="처음으로"
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+          </button>
+          <button
+            onClick={() => goTo(idx - 1)}
+            disabled={idx === 0}
+            className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-700 transition-all disabled:opacity-30"
+          >
+            ◀ 이전
+          </button>
+          <button
+            onClick={handlePlayPause}
+            className={`px-8 py-2.5 rounded-xl text-sm font-black transition-all ${
+              playing
+                ? 'bg-red-600 hover:bg-red-500 text-white'
+                : 'bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-900/30'
+            }`}
+          >
+            {playing ? '⏹ 정지' : '▶ 연속 재생'}
+          </button>
+          <button
+            onClick={() => goTo(idx + 1)}
+            disabled={idx === validAssets.length - 1}
+            className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-700 transition-all disabled:opacity-30"
+          >
+            다음 ▶
+          </button>
+          <button
+            onClick={() => goTo(validAssets.length - 1)}
+            className="px-3 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-700 transition-all"
+            title="마지막으로"
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// 컴포넌트 4: TableRow
+// ============================================================
 interface TableRowProps {
   row: GeneratedAsset;
   index: number;
@@ -237,11 +523,18 @@ const TableRow: React.FC<TableRowProps> = memo(({ row, index, isAnimating, onReg
                 </button>
               </div>
             </>
-          ) : <div className="absolute inset-0 flex items-center justify-center border-2 border-dashed border-slate-800 m-2 rounded-lg"><span className="text-[7px] text-slate-700 font-black uppercase">대기 중</span></div>}
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center border-2 border-dashed border-slate-800 m-2 rounded-lg">
+              <span className="text-[7px] text-slate-700 font-black uppercase">대기 중</span>
+            </div>
+          )}
         </div>
       </td>
       <td className="py-5 px-6 align-top text-center">
-        {row.audioData ? <div className="flex justify-center"><AudioPlayer base64={row.audioData} /></div> : <div className="flex flex-col items-center gap-1.5 opacity-30"><div className="w-2.5 h-2.5 border-2 border-slate-700 border-t-slate-500 animate-spin rounded-full"></div><span className="text-[6px] text-slate-600 font-black uppercase">VO</span></div>}
+        {row.audioData
+          ? <div className="flex justify-center"><AudioPlayer base64={row.audioData} /></div>
+          : <div className="flex flex-col items-center gap-1.5 opacity-30"><div className="w-2.5 h-2.5 border-2 border-slate-700 border-t-slate-500 animate-spin rounded-full"></div><span className="text-[6px] text-slate-600 font-black uppercase">VO</span></div>
+        }
       </td>
       <td className="py-5 px-6 align-top">
         <div className="text-[9px] text-slate-500 font-mono min-w-[100px]">
@@ -260,102 +553,19 @@ const TableRow: React.FC<TableRowProps> = memo(({ row, index, isAnimating, onReg
     </tr>
   );
 });
-
 TableRow.displayName = 'TableRow';
 
-// 미리보기 모달 (슬라이드쇼 + 오디오)
-const PreviewModal: React.FC<{ assets: GeneratedAsset[]; onClose: () => void }> = memo(({ assets, onClose }) => {
-  const [idx, setIdx] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const playingRef = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
-
-  const validAssets = assets.filter(a => a.imageData);
-  playingRef.current = playing;
-
-  const playScene = useCallback(async (sceneIdx: number) => {
-    if (sourceRef.current) { try { sourceRef.current.stop(); } catch {} sourceRef.current = null; }
-    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
-    if (sceneIdx >= validAssets.length) { setPlaying(false); playingRef.current = false; return; }
-
-    setIdx(sceneIdx);
-    const asset = validAssets[sceneIdx];
-    let duration = 3;
-
-    if (asset.audioData) {
-      try {
-        if (!audioCtxRef.current) audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const ctx = audioCtxRef.current;
-        if (ctx.state === 'suspended') await ctx.resume();
-        const audioBuffer = await decodeAudio(asset.audioData, ctx);
-        duration = audioBuffer.duration;
-        const source = ctx.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(ctx.destination);
-        source.onended = () => { if (playingRef.current) playScene(sceneIdx + 1); };
-        source.start();
-        sourceRef.current = source;
-        return;
-      } catch {}
-    }
-    timerRef.current = setTimeout(() => { if (playingRef.current) playScene(sceneIdx + 1); }, duration * 1000);
-  }, [validAssets]);
-
-  const handlePlay = () => { setPlaying(true); playingRef.current = true; playScene(idx); };
-  const handleStop = () => {
-    setPlaying(false);
-    playingRef.current = false;
-    if (sourceRef.current) { try { sourceRef.current.stop(); } catch {} sourceRef.current = null; }
-    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
-  };
-
-  useEffect(() => () => {
-    handleStop();
-    audioCtxRef.current?.close();
-  }, []);
-
-  const current = validAssets[idx];
-  if (validAssets.length === 0) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center" onClick={onClose}>
-      <div className="relative w-full max-w-4xl px-4" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute -top-10 right-0 text-white text-sm hover:text-slate-300">✕ 닫기</button>
-        <div className="aspect-video bg-black rounded-xl overflow-hidden relative">
-          {current?.videoData ? (
-            <video src={current.videoData} className="w-full h-full object-contain" autoPlay loop muted playsInline />
-          ) : current?.imageData ? (
-            <img src={`data:image/jpeg;base64,${current.imageData}`} alt="" className="w-full h-full object-contain" />
-          ) : (
-            <div className="flex items-center justify-center h-full text-slate-500">이미지 없음</div>
-          )}
-          <div className="absolute bottom-4 left-0 right-0 text-center px-4">
-            <span className="bg-black/70 text-white text-sm px-4 py-2 rounded-lg line-clamp-2">{current?.narration}</span>
-          </div>
-          <div className="absolute top-3 left-3 bg-black/60 text-white text-xs px-2 py-1 rounded">씬 {idx + 1} / {validAssets.length}</div>
-        </div>
-        <div className="flex items-center justify-center gap-4 mt-4">
-          <button onClick={() => setIdx(Math.max(0, idx - 1))} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm">◀ 이전</button>
-          <button onClick={playing ? handleStop : handlePlay} className={`px-6 py-2 rounded-lg text-sm font-bold ${playing ? 'bg-red-600 hover:bg-red-500' : 'bg-brand-600 hover:bg-brand-500'} text-white`}>
-            {playing ? '⏹ 정지' : '▶ 연속 재생'}
-          </button>
-          <button onClick={() => setIdx(Math.min(validAssets.length - 1, idx + 1))} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm">다음 ▶</button>
-        </div>
-      </div>
-    </div>
-  );
-});
-
-PreviewModal.displayName = 'PreviewModal';
-
+// ============================================================
+// 컴포넌트 5: ResultTable (메인)
+// ============================================================
 const ResultTable: React.FC<ResultTableProps> = ({ data, currentCost, onRegenerateImage, onExportVideo, onGenerateAnimation, isExporting, animatingIndices }) => {
   const [previewOpen, setPreviewOpen] = useState(false);
+
   if (data.length === 0) return null;
 
   return (
     <div className="w-full max-w-[98%] mx-auto pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* 헤더 + 버튼 영역 */}
       <div className="flex items-center justify-between mb-4 bg-slate-900/90 backdrop-blur-md p-5 rounded-3xl border border-slate-800">
         <div className="flex items-center gap-4">
           <div className="w-1 h-10 bg-brand-500 rounded-full"></div>
@@ -364,11 +574,16 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, currentCost, onRegenera
             <p className="text-slate-500 text-[9px] font-bold uppercase tracking-widest">Ultra-Detail Identity Sync Active</p>
           </div>
         </div>
-        <div className="flex gap-2">
-            <button onClick={() => setPreviewOpen(true)} className="px-4 py-2.5 rounded-xl bg-purple-800 border border-purple-700 text-purple-300 font-bold text-[10px] hover:bg-purple-700 transition-all flex items-center gap-2">
+        <div className="flex gap-2 flex-wrap">
+            {/* ★ 미리보기 버튼 ★ */}
+            <button
+              onClick={() => setPreviewOpen(true)}
+              className="px-4 py-2.5 rounded-xl bg-purple-800/80 border border-purple-600 text-purple-200 font-bold text-[10px] hover:bg-purple-700 transition-all flex items-center gap-2"
+            >
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
               미리보기
             </button>
+
             <button onClick={() => downloadProjectZip(data)} className="px-4 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 font-bold text-[10px] hover:bg-slate-700 transition-all flex items-center gap-2">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
               전체 프로젝트 저장
@@ -392,6 +607,7 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, currentCost, onRegenera
         </div>
       </div>
 
+      {/* 비용 상세 */}
       {currentCost && currentCost.total > 0 && (
       <div className="mb-6 p-4 rounded-2xl bg-slate-800/50 border border-slate-700">
         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">📊 생성 비용 상세</div>
@@ -406,6 +622,7 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, currentCost, onRegenera
       </div>
       )}
 
+      {/* 테이블 */}
       <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/20 backdrop-blur-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[1400px] table-fixed">
@@ -434,7 +651,14 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, currentCost, onRegenera
           </table>
         </div>
       </div>
-      {previewOpen && <PreviewModal assets={data} onClose={() => setPreviewOpen(false)} />}
+
+      {/* ★ 프리뷰 모달 ★ */}
+      {previewOpen && (
+        <PreviewModal
+          assets={data}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
     </div>
   );
 };
