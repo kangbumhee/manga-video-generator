@@ -14,8 +14,8 @@ async function decodeAudio(base64: string, ctx: AudioContext): Promise<AudioBuff
     // MP3/WAV (ElevenLabs)
     return await ctx.decodeAudioData(bytes.buffer.slice(0));
   } catch (e) {
-    // Raw PCM (Gemini)
-    const dataInt16 = new Int16Array(bytes.buffer);
+    // Raw PCM (Gemini) - slice로 복사하여 byteOffset 문제 방지
+    const dataInt16 = new Int16Array(bytes.buffer.slice(0));
     const frameCount = dataInt16.length;
     const buffer = ctx.createBuffer(1, frameCount, 24000);
     const channelData = buffer.getChannelData(0);
@@ -431,6 +431,15 @@ export const generateVideo = async (
     recorder.onstop = async () => {
       await audioCtx.close(); // 오디오 컨텍스트 정리
 
+      // 비디오 엘리먼트 정리 (메모리 누수 방지)
+      preparedScenes.forEach(scene => {
+        if (scene.video) {
+          scene.video.pause();
+          scene.video.removeAttribute('src');
+          scene.video.load();
+        }
+      });
+
       // 마지막 자막 청크 종료 처리
       if (lastRecordedChunkText !== null) {
         recordedSubtitles.push({
@@ -500,6 +509,7 @@ export const generateVideo = async (
     recorder.start();
 
     // 4. 고정밀 프레임 루프 (Master Clock Tracking)
+    let lastReportedPercent = -1;
     const renderLoop = () => {
       if (isFinished) return;
 
@@ -534,12 +544,24 @@ export const generateVideo = async (
           currentScene = preparedScenes[0];
           currentSceneIndex = 0;
         } else {
+          // 갭 구간 진입 시 자막 기록 종료
+          if (lastRecordedChunkText !== null) {
+            recordedSubtitles.push({
+              index: subtitleIndex,
+              startTime: currentChunkStartTime,
+              endTime: elapsed,
+              text: lastRecordedChunkText
+            });
+            subtitleIndex++;
+            lastRecordedChunkText = null;
+          }
           // 씬 사이 갭 구간: 검은 화면
           ctx.fillStyle = '#000';
           ctx.fillRect(0, 0, canvas.width, canvas.height);
 
           const percent = Math.min(100, Math.round((elapsed / totalDuration) * 100));
-          if (percent % 5 === 0) {
+          if (percent !== lastReportedPercent && percent % 5 === 0) {
+            lastReportedPercent = percent;
             onProgress(`동기화 렌더링 가동 중: ${percent}%`);
           }
 
@@ -620,10 +642,11 @@ export const generateVideo = async (
           lastRecordedChunkText = currentChunkText;
         }
 
-        // 실시간 진행률 업데이트
+        // 실시간 진행률 업데이트 (변경 시에만 호출)
         const percent = Math.min(100, Math.round((elapsed / totalDuration) * 100));
-        if (percent % 5 === 0) { // 너무 빈번한 업데이트 방지
-            onProgress(`동기화 렌더링 가동 중: ${percent}%`);
+        if (percent !== lastReportedPercent && percent % 5 === 0) {
+          lastReportedPercent = percent;
+          onProgress(`동기화 렌더링 가동 중: ${percent}%`);
         }
       }
 

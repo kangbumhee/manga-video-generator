@@ -301,6 +301,7 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, currentCost, onRegenera
           {currentCost.imageCount > 0 && <div className="flex justify-between sm:flex-col sm:gap-0"><span>이미지 {currentCost.imageCount}씬</span><span className="font-mono text-brand-400">= {formatKRW(currentCost.images)}</span></div>}
           {currentCost.ttsCharacters > 0 && <div className="flex justify-between sm:flex-col sm:gap-0"><span>TTS {currentCost.ttsCharacters}자</span><span className="font-mono text-brand-400">= {formatKRW(currentCost.tts)}</span></div>}
           {currentCost.videoCount > 0 && <div className="flex justify-between sm:flex-col sm:gap-0"><span>영상 {currentCost.videoCount}개</span><span className="font-mono text-brand-400">= {formatKRW(currentCost.videos)}</span></div>}
+          {(currentCost as any).bgm > 0 && <div className="flex justify-between sm:flex-col sm:gap-0"><span>BGM</span><span className="font-mono text-brand-400">= {formatKRW((currentCost as any).bgm)}</span></div>}
           <div className="col-span-2 sm:col-span-1 border-t sm:border-t-0 sm:border-l border-slate-700 pt-2 sm:pt-0 sm:pl-2 flex justify-between sm:flex-col font-bold text-brand-400"><span>합계</span><span className="font-mono">= {formatKRW(currentCost.total)}</span></div>
         </div>
       </div>

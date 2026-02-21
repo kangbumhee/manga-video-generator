@@ -43,7 +43,7 @@ const App: React.FC = () => {
   // 비용 추적
   const [currentCost, setCurrentCost] = useState<CostBreakdown | null>(null);
   const costRef = useRef<CostBreakdown>({
-    script: 0, images: 0, tts: 0, videos: 0, total: 0,
+    script: 0, images: 0, tts: 0, videos: 0, bgm: 0, total: 0,
     imageCount: 0, ttsCharacters: 0, videoCount: 0
   });
 
@@ -123,7 +123,7 @@ const App: React.FC = () => {
   };
 
   // 비용 추가 헬퍼
-  const addCost = (type: 'script' | 'image' | 'tts' | 'video', amount: number, count: number = 1) => {
+  const addCost = (type: 'script' | 'image' | 'tts' | 'video' | 'bgm', amount: number, count: number = 1) => {
     if (type === 'script') {
       costRef.current.script += amount;
     } else if (type === 'image') {
@@ -135,15 +135,17 @@ const App: React.FC = () => {
     } else if (type === 'video') {
       costRef.current.videos += amount;
       costRef.current.videoCount += count;
+    } else if (type === 'bgm') {
+      costRef.current.bgm += amount;
     }
-    costRef.current.total = costRef.current.script + costRef.current.images + costRef.current.tts + costRef.current.videos;
+    costRef.current.total = costRef.current.script + costRef.current.images + costRef.current.tts + costRef.current.videos + costRef.current.bgm;
     setCurrentCost({ ...costRef.current });
   };
 
   // 비용 초기화
   const resetCost = () => {
     costRef.current = {
-      script: 0, images: 0, tts: 0, videos: 0, total: 0,
+      script: 0, images: 0, tts: 0, videos: 0, bgm: 0, total: 0,
       imageCount: 0, ttsCharacters: 0, videoCount: 0
     };
     setCurrentCost(null);
@@ -449,6 +451,7 @@ const App: React.FC = () => {
       if (cost.imageCount > 0) parts.push(`이미지 ${cost.imageCount}장 ${formatKRW(cost.images)}`);
       if (cost.ttsCharacters > 0) parts.push(`TTS ${cost.ttsCharacters}자 ${formatKRW(cost.tts)}`);
       if (cost.videoCount > 0) parts.push(`영상 ${cost.videoCount}개 ${formatKRW(cost.videos)}`);
+      if (cost.bgm > 0) parts.push(`BGM ${formatKRW(cost.bgm)}`);
       const costMsg = parts.length > 0 ? parts.join(' + ') + ` = 총 ${formatKRW(cost.total)}` : `총 ${formatKRW(cost.total)}`;
       setProgressMessage(`생성 완료! ${costMsg}`);
 
@@ -599,6 +602,17 @@ const App: React.FC = () => {
       if (result) {
         // 영상 저장 (자막은 영상에 하드코딩됨)
         saveAs(result.videoBlob, `tubegen_v92_${suffix}_${timestamp}.mp4`);
+
+        // SRT 자막 파일도 함께 다운로드
+        if (enableSubtitles && result.recordedSubtitles.length > 0) {
+          downloadSrtFromRecorded(result.recordedSubtitles, `tubegen_v92_${suffix}_${timestamp}.srt`);
+        }
+
+        // BGM 비용 추적
+        if (bgmEnabled) {
+          addCost('bgm', PRICING.BGM.fixed30s, 0);
+        }
+
         setProgressMessage(`✨ MP4 렌더링 완료! (${enableSubtitles ? '자막 O' : '자막 X'})`);
       }
     } catch (error: any) {
@@ -622,7 +636,7 @@ const App: React.FC = () => {
     setStep(GenerationStep.COMPLETED);
     setProgressMessage(`"${project.name}" 프로젝트 불러옴`);
     setViewMode('main');
-    // 비용 정보 복원 (하위 호환: script 없을 수 있음)
+    // 비용 정보 복원 (하위 호환: script, bgm 없을 수 있음)
     if (project.cost) {
       const c = project.cost;
       costRef.current = {
@@ -630,6 +644,7 @@ const App: React.FC = () => {
         images: c.images,
         tts: c.tts,
         videos: c.videos,
+        bgm: (c as any).bgm ?? 0,
         total: c.total,
         imageCount: c.imageCount,
         ttsCharacters: c.ttsCharacters,

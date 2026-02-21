@@ -50,6 +50,7 @@ export interface SceneAnalysis {
   differentiation_point: string; // 차별화포인트
   motion_type: '정적' | '동적';
   motion_detail: string; // 동작디테일
+  sentiment?: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';  // 감정 톤
 }
 
 export interface ScriptScene {
@@ -125,6 +126,7 @@ export interface CostBreakdown {
   images: number;      // 이미지 생성 비용
   tts: number;         // TTS 비용
   videos: number;      // 영상 생성 비용
+  bgm: number;         // BGM 생성 비용 (30초 고정 ~$0.25)
   total: number;       // 총 비용
   imageCount: number;  // 생성된 이미지 수
   ttsCharacters: number; // TTS 글자 수

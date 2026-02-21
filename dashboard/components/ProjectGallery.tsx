@@ -119,6 +119,9 @@ const ProjectGallery: React.FC<ProjectGalleryProps> = ({
                     영상 {selectedProject.cost.videoCount}개 {formatKRW(selectedProject.cost.videos)}
                   </span>
                 )}
+                {(selectedProject.cost as any).bgm > 0 && (
+                  <span className="text-slate-300">BGM {formatKRW((selectedProject.cost as any).bgm)}</span>
+                )}
                 <span className="px-2 py-0.5 bg-green-500/20 text-green-400 font-bold rounded">
                   총 {formatKRW(selectedProject.cost.total)}
                 </span>

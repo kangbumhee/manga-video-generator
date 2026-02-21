@@ -1,5 +1,8 @@
 
 import { GeneratedAsset, SubtitleData, DEFAULT_SUBTITLE_CONFIG } from '../types';
+
+// videoService.ts와 동일
+const SCENE_GAP = 0.6;
 import { RecordedSubtitleEntry } from './videoService';
 
 /**
@@ -32,8 +35,8 @@ async function decodeAudioDuration(base64: string): Promise<number> {
       const audioBuffer = await audioCtx.decodeAudioData(bytes.buffer.slice(0));
       return audioBuffer.duration;
     } catch (e) {
-      // Raw PCM (Gemini) - 24000Hz 모노
-      const dataInt16 = new Int16Array(bytes.buffer);
+      // Raw PCM (Gemini) - 24000Hz 모노 (slice로 byteOffset 문제 방지)
+      const dataInt16 = new Int16Array(bytes.buffer.slice(0));
       return dataInt16.length / 24000;
     }
   } finally {
@@ -97,7 +100,13 @@ export async function generateSrtContent(assets: GeneratedAsset[]): Promise<stri
   // 각 씬의 오디오 길이 계산을 위한 기본값 (videoService와 동일)
   const DEFAULT_DURATION = 3;
 
-  for (const asset of validAssets) {
+  for (let idx = 0; idx < validAssets.length; idx++) {
+    const asset = validAssets[idx];
+
+    // 첫 씬이 아니면 갭 추가 (videoService.ts와 동일)
+    if (idx > 0) {
+      timelinePointer += SCENE_GAP;
+    }
     // videoService와 100% 동일한 duration 계산 로직
     // 오디오가 있으면 디코딩해서 실제 길이 사용, 없으면 기본 3초
     let sceneDuration = DEFAULT_DURATION;
@@ -114,7 +123,6 @@ export async function generateSrtContent(assets: GeneratedAsset[]): Promise<stri
     // videoService와 동일: 오디오 없으면 기본 3초 (다른 폴백 없음)
 
     if (!asset.subtitleData || asset.subtitleData.words.length === 0) {
-      // 자막 없는 씬은 오디오 길이만큼 건너뜀
       timelinePointer += sceneDuration;
       continue;
     }

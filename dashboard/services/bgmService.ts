@@ -83,7 +83,6 @@ export async function generateBgm(
       body: JSON.stringify({
         prompt: prompt,
         music_length_ms: bgmDurationMs,
-        model_id: 'music_v1',
         force_instrumental: true,
       }),
     });

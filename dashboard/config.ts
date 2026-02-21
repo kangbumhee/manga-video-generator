@@ -108,6 +108,11 @@ export const PRICING = {
     perCharacter: 0.00003,
     per1kChars: 0.03,
   },
+  // BGM (ElevenLabs Music - 30초 고정 loop)
+  BGM: {
+    perSecond: 0.00833,  // $0.50/min ≈ $0.00833/sec
+    fixed30s: 0.25,      // 30초 고정 생성 비용
+  },
   // 영상 생성 (VIDEO_MODELS와 일치)
   VIDEO: {
     'sora_video2-landscape': 0.12,
