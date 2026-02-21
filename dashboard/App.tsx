@@ -207,7 +207,11 @@ const App: React.FC = () => {
 
       // 참조 이미지 존재 여부 계산
       const hasRefImages = (refImgs.character?.length || 0) + (refImgs.style?.length || 0) > 0;
-      console.log(`[App] 참조 이미지 - 캐릭터: ${refImgs.character?.length || 0}개, 스타일: ${refImgs.style?.length || 0}개`);
+      const isApiyiMode = typeof localStorage !== 'undefined' && !!localStorage.getItem('tubegen_apiyi_key');
+      console.log(`[App] 참조 이미지 - 캐릭터: ${refImgs.character?.length || 0}개, 스타일: ${refImgs.style?.length || 0}개, 모드: ${isApiyiMode ? 'APIYI' : 'Google SDK'}`);
+      if (hasRefImages && isApiyiMode) {
+        console.log('[App] APIYI 모드: chat/completions로 참조 이미지 전달 (최대 14장 지원)');
+      }
 
       let targetTopic = topic;
 
@@ -392,7 +396,8 @@ const App: React.FC = () => {
           return;
         }
 
-        const animationCount = Math.min(CONFIG.ANIMATION.ENABLED_SCENES, initialAssets.length);
+        const sceneCount = Number(typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_video_scene_count') : null) || CONFIG.ANIMATION.ENABLED_SCENES;
+        const animationCount = Math.min(sceneCount, initialAssets.length);
         setProgressMessage(`앞 ${animationCount}개 씬 애니메이션 변환 중...`);
 
         for (let i = 0; i < animationCount; i++) {
@@ -438,9 +443,13 @@ const App: React.FC = () => {
       // 이미지와 오디오 먼저 병렬 생성
       await Promise.all([runAudio(), runImages()]);
 
-      // 애니메이션 변환은 이제 수동으로 (이미지 호버 시 버튼 클릭)
-      // 자동 변환 비활성화 - 사용자가 원하는 이미지만 선택적으로 변환 가능
-      
+      // 프리셋 videoMode가 partial/full이면 자동 애니메이션 변환 실행
+      const videoMode = typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_video_mode') : null;
+      const videoSceneCount = Number(typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_video_scene_count') : null) || 0;
+      if (videoMode && videoMode !== 'none' && videoSceneCount > 0 && !isAbortedRef.current) {
+        await runAnimations();
+      }
+
       if (isAbortedRef.current) return;
       setStep(GenerationStep.COMPLETED);
 
@@ -608,7 +617,7 @@ const App: React.FC = () => {
           downloadSrtFromRecorded(result.recordedSubtitles, `tubegen_v92_${suffix}_${timestamp}.srt`);
         }
 
-        // BGM 비용 추적
+        // BGM 비용 추적 (내보내기마다 BGM 생성되므로 매회 추가)
         if (bgmEnabled) {
           addCost('bgm', PRICING.BGM.fixed30s, 0);
         }

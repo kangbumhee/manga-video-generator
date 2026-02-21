@@ -143,9 +143,9 @@ export function getVideoModelCost(): number {
   return model?.costPerVideo ?? VIDEO_MODELS['sora_video2-landscape'].costPerVideo;
 }
 
-// 선택된 이미지 모델의 비용 (USD) - APIYI tubegen_image_model_apiyi 사용
+// 선택된 이미지 모델의 비용 (USD) - IMAGE_MODEL 또는 tubegen_image_model_apiyi 사용
 export function getImageModelCost(): number {
-  const id = (typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_image_model_apiyi') : null) || 'gemini-2.5-flash-image-preview';
+  const id = (typeof localStorage !== 'undefined' ? (localStorage.getItem(CONFIG.STORAGE_KEYS.IMAGE_MODEL) || localStorage.getItem('tubegen_image_model_apiyi')) : null) || 'gemini-2.5-flash-image-preview';
   const price = (PRICING.IMAGE as Record<string, number>)[id];
   return price ?? 0.025;
 }

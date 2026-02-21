@@ -52,7 +52,27 @@ export const SYSTEM_INSTRUCTIONS = {
 - 같은 개념은 같은 모습으로 그려라
 `,
 
-  REFERENCE_MATCH: `참조 이미지의 화풍을 따르되 졸라맨 규칙을 적용하라.`
+  REFERENCE_MATCH: `
+참조 이미지가 제공됩니다. 다음 규칙을 따르세요:
+
+## 캐릭터 참조 이미지가 있는 경우
+- 참조 이미지의 캐릭터 외모(얼굴, 헤어, 의상, 체형)를 일관되게 유지
+- 모든 씬에서 동일한 캐릭터가 등장해야 함
+- image_prompt_english에 "matching the provided character reference" 문구 포함
+
+## 스타일 참조 이미지가 있는 경우
+- 참조 이미지의 화풍(색감, 브러시 스트로크, 조명, 분위기)을 따라야 함
+- image_prompt_english에 "following the provided art style reference" 문구 포함
+
+## 참조 이미지가 없는 필드
+- 캐릭터 참조 없으면: 기본 졸라맨 스틱 피겨 사용
+- 스타일 참조 없으면: 선택된 화풍 프리셋 또는 기본 크레용 스타일 사용
+
+## 시각화 규칙 (기본 아트 디렉터와 동일)
+- 문장의 의미를 그대로 시각화
+- 물리적 형태 있으면 그대로, 추상 개념은 관련 사물로 표현
+- 구도: NO_CHAR / MICRO / STANDARD / MACRO 적용
+`
 };
 
 /**
@@ -75,7 +95,7 @@ export const getFinalVisualPrompt = (scene: any, hasCharacterRef: boolean = fals
   const charPrompt = type === 'NO_CHAR'
     ? `NO CHARACTER - objects/text only.${styleNote}`
     : hasCharacterRef
-    ? `Use CHARACTER REFERENCE image.${styleNote}`
+    ? `IMPORTANT: Match the character from the provided CHARACTER REFERENCE images. Maintain the same face, hair, clothing, and body proportions. Character size: ${type === 'MICRO' ? '5-15%' : type === 'MACRO' ? '60-80%' : '30-40%'} of frame.${styleNote}`
     : `Stick figure (${type === 'MICRO' ? '5-15%' : type === 'MACRO' ? '60-80%' : '30-40%'}).${styleNote}`;
 
   // 스타일

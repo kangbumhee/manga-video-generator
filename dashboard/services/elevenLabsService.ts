@@ -277,7 +277,7 @@ export interface ElevenLabsVoice {
  */
 export const fetchElevenLabsVoices = async (apiKey?: string): Promise<ElevenLabsVoice[]> => {
   // 환경변수 우선, 그 다음 localStorage
-  const envKey = process.env.ELEVENLABS_API_KEY;
+  const envKey = typeof process !== 'undefined' ? (process as any).env?.ELEVENLABS_API_KEY : null;
   const finalKey = apiKey || envKey || localStorage.getItem(CONFIG.STORAGE_KEYS.ELEVENLABS_API_KEY);
 
   if (!finalKey || finalKey.length < 10) {

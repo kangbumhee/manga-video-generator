@@ -39,16 +39,25 @@ const SettingsPage: React.FC = () => {
   const saveElKey = (key: string) => {
     setElKey(key);
     localStorage.setItem(STORAGE_KEYS.ELEVENLABS_API_KEY, key);
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.set({ [STORAGE_KEYS.ELEVENLABS_API_KEY]: key });
+    }
   };
 
   const saveElVoiceId = (id: string) => {
     setElVoiceId(id);
     localStorage.setItem(STORAGE_KEYS.ELEVENLABS_VOICE_ID, id);
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.set({ [STORAGE_KEYS.ELEVENLABS_VOICE_ID]: id });
+    }
   };
 
   const saveElModel = (model: string) => {
     setElModel(model);
     localStorage.setItem(STORAGE_KEYS.ELEVENLABS_MODEL, model);
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.set({ [STORAGE_KEYS.ELEVENLABS_MODEL]: model });
+    }
   };
 
   const testApiyiConnection = async () => {

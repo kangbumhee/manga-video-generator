@@ -708,19 +708,131 @@ export const generateImageForScene = async (
         console.log('[generateImageForScene] 모드:', config.mode);
 
         if (config.mode === 'apiyi') {
-          // APIYI: OpenAI 호환 이미지 생성 - 참조 이미지는 미지원
-          const imageModel = typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_image_model_apiyi') || 'gemini-2.5-flash-image-preview' : 'gemini-2.5-flash-image-preview';
+          const imageModel = typeof localStorage !== 'undefined' ? (localStorage.getItem(CONFIG.STORAGE_KEYS.IMAGE_MODEL) || localStorage.getItem('tubegen_image_model_apiyi')) || 'gemini-2.5-flash-image-preview' : 'gemini-2.5-flash-image-preview';
           const imageQuality = typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_image_quality') || 'low' : 'low';
 
           const isGptImage = imageModel === 'gpt-image-1' || imageModel === 'gpt-image-1.5';
           const isSeedreamOrGemini = imageModel === 'seedream-4-5-251128' || imageModel === 'gemini-2.5-flash-image-preview' || imageModel === 'gemini-3-pro-image-preview';
 
+          // 참조 이미지가 있으면 chat/completions 경로 사용 (APIYI는 최대 14장 지원)
+          if (hasCharacterRef || hasStyleRef) {
+            console.log(`[Image Gen APIYI] 참조 이미지 모드: 캐릭터 ${referenceImages.character?.length || 0}장, 스타일 ${referenceImages.style?.length || 0}장`);
+
+            const contentParts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
+
+            if (hasCharacterRef) {
+              const charDesc = getStrengthDescription(characterStrength);
+              contentParts.push({
+                type: 'text',
+                text: `[CHARACTER REFERENCE - Strength: ${characterStrength}%]\nMatch this character's appearance ${charDesc.level}.\n${charDesc.instruction}\nFocus on: face, hair, clothing, body proportions.`
+              });
+              referenceImages.character!.forEach(img => {
+                contentParts.push({
+                  type: 'image_url',
+                  image_url: {
+                    url: img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`
+                  }
+                });
+              });
+            }
+
+            if (hasStyleRef) {
+              const styleDesc = getStrengthDescription(styleStrength);
+              contentParts.push({
+                type: 'text',
+                text: `[STYLE REFERENCE - Strength: ${styleStrength}%]\nMatch this art style ${styleDesc.level}.\n${styleDesc.instruction}\nFocus on: color palette, brush strokes, lighting, overall mood.`
+              });
+              referenceImages.style!.forEach(img => {
+                contentParts.push({
+                  type: 'image_url',
+                  image_url: {
+                    url: img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`
+                  }
+                });
+              });
+            }
+
+            if (!hasStyleRef) {
+              const stylePrompt = getSelectedGeminiStylePrompt();
+              if (stylePrompt) {
+                contentParts.push({
+                  type: 'text',
+                  text: `[ART STYLE INSTRUCTION]\nApply this art style: ${stylePrompt}\nEnsure the entire image consistently follows this visual style.`
+                });
+              }
+            }
+
+            contentParts.push({
+              type: 'text',
+              text: `[SCENE PROMPT - Generate an image based on the above references]\n${sanitizedPrompt}`
+            });
+
+            const chatBody = {
+              model: imageModel,
+              messages: [{ role: 'user', content: contentParts }],
+              max_tokens: 4096,
+            };
+
+            const chatResponse = await fetch(`${config.baseUrl}/chat/completions`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${config.apiKey}`,
+              },
+              body: JSON.stringify(chatBody),
+            });
+
+            if (chatResponse.ok) {
+              const chatData = await chatResponse.json();
+              const choices = (chatData as { choices?: { message?: { content?: unknown } }[] }).choices;
+              if (choices?.[0]?.message?.content) {
+                const content = choices[0].message.content;
+                if (Array.isArray(content)) {
+                  for (const p of content) {
+                    const part = p as { type?: string; image_url?: { url: string }; data?: string };
+                    if (part.type === 'image_url' && part.image_url?.url) {
+                      const url = part.image_url.url;
+                      if (url.includes(',')) return url.split(',')[1];
+                      return url;
+                    }
+                    if (part.type === 'image' && part.data) return part.data;
+                  }
+                }
+                if (typeof content === 'string') {
+                  const base64Match = content.match(/data:image\/[^;]+;base64,([A-Za-z0-9+/=]+)/);
+                  if (base64Match) return base64Match[1];
+                  const urlMatch = content.match(/https?:\/\/[^\s"'\]]+\.(png|jpg|jpeg|webp)[^\s"'\]]*/i);
+                  if (urlMatch) {
+                    try {
+                      const imgRes = await fetch(urlMatch[0]);
+                      const blob = await imgRes.blob();
+                      return new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          const dataUrl = reader.result as string;
+                          resolve(dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl);
+                        };
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                      });
+                    } catch (e) {
+                      console.warn('[Image Gen APIYI] 이미지 URL 다운로드 실패:', e);
+                    }
+                  }
+                }
+              }
+              console.warn('[Image Gen APIYI] 참조 이미지 모드: 응답에서 이미지 추출 실패. images/generations 폴백.');
+            } else {
+              console.warn('[Image Gen APIYI] chat completions 실패:', chatResponse.status, 'images/generations 폴백.');
+            }
+          }
+
+          // 참조 이미지 없음 또는 폴백: images/generations 사용
           const body: Record<string, unknown> = {
             model: imageModel,
             prompt: sanitizedPrompt,
             n: 1,
           };
-
           if (isSeedreamOrGemini) {
             body.size = '1024x1024';
           } else if (isGptImage) {
@@ -750,8 +862,26 @@ export const generateImageForScene = async (
           }
 
           const data = await response.json();
-          const imgData = (data as { data?: { b64_json?: string }[] }).data?.[0]?.b64_json;
-          return imgData ?? null;
+          const imgData = (data as { data?: { b64_json?: string; url?: string }[] }).data?.[0];
+          if (imgData?.b64_json) return imgData.b64_json;
+          if (imgData?.url) {
+            try {
+              const imgRes = await fetch(imgData.url);
+              const blob = await imgRes.blob();
+              return new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  const dataUrl = reader.result as string;
+                  resolve(dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+            } catch (e) {
+              console.warn('[Image Gen APIYI] URL 이미지 다운로드 실패:', e);
+            }
+          }
+          return null;
         }
 
         // Google SDK: 기존 방식 (참조 이미지 지원)

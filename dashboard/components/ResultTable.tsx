@@ -26,7 +26,7 @@ async function decodeAudio(base64: string, ctx: AudioContext): Promise<AudioBuff
   try {
     return await ctx.decodeAudioData(bytes.buffer.slice(0));
   } catch (e) {
-    const dataInt16 = new Int16Array(bytes.buffer);
+    const dataInt16 = new Int16Array(bytes.buffer.slice(0));
     const frameCount = dataInt16.length;
     const buffer = ctx.createBuffer(1, frameCount, 24000);
     const channelData = buffer.getChannelData(0);
@@ -89,6 +89,13 @@ const AudioPlayer: React.FC<{ base64: string }> = memo(({ base64 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (sourceRef.current) { try { sourceRef.current.stop(); } catch (e) {} sourceRef.current = null; }
+      if (audioContextRef.current) { audioContextRef.current.close(); audioContextRef.current = null; }
+    };
+  }, []);
 
   const stopAudio = () => {
     if (sourceRef.current) { try { sourceRef.current.stop(); } catch (e) {} sourceRef.current = null; }
@@ -309,7 +316,7 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, currentCost, onRegenera
 
       <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/20 backdrop-blur-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1200px] table-fixed">
+          <table className="w-full text-left border-collapse min-w-[1400px] table-fixed">
             <thead className="bg-slate-900/80 border-b border-slate-800">
               <tr>
                 <th className="py-4 px-6 text-[9px] font-black text-slate-500 uppercase tracking-widest w-16">번호</th>

@@ -117,6 +117,7 @@ const InputSection: React.FC<InputSectionProps> = ({ onGenerate, step }) => {
     if (preset) {
       localStorage.setItem('tubegen_script_model', preset.scriptModel);
       localStorage.setItem('tubegen_image_model_apiyi', preset.imageModel);
+      localStorage.setItem(CONFIG.STORAGE_KEYS.IMAGE_MODEL, preset.imageModel);
       localStorage.setItem('tubegen_image_quality', preset.imageQuality);
       localStorage.setItem('tubegen_video_mode', preset.videoMode);
       localStorage.setItem('tubegen_video_model', preset.videoModel);
@@ -152,7 +153,7 @@ const InputSection: React.FC<InputSectionProps> = ({ onGenerate, step }) => {
     // API 키는 환경변수에서 읽음 (elApiKey 상수로 이미 설정됨)
     const savedVoiceId = localStorage.getItem(CONFIG.STORAGE_KEYS.ELEVENLABS_VOICE_ID) || '';
     const savedModelId = getElevenLabsModelId();
-    const savedImageModel = localStorage.getItem(CONFIG.STORAGE_KEYS.IMAGE_MODEL) as ImageModelId || CONFIG.DEFAULT_IMAGE_MODEL;
+    const savedImageModel = (localStorage.getItem(CONFIG.STORAGE_KEYS.IMAGE_MODEL) || localStorage.getItem('tubegen_image_model_apiyi')) as ImageModelId || CONFIG.DEFAULT_IMAGE_MODEL;
 
     // Gemini 스타일 설정 로드
     const savedGeminiStyle = localStorage.getItem(CONFIG.STORAGE_KEYS.GEMINI_STYLE) as GeminiStyleId || 'gemini-none';
@@ -456,6 +457,12 @@ const InputSection: React.FC<InputSectionProps> = ({ onGenerate, step }) => {
     e.preventDefault();
     if (isProcessing) return;
 
+    // 생성 전에 ElevenLabs 설정 즉시 저장 (패널 닫지 않고 생성해도 반영)
+    if (elVoiceId) {
+      localStorage.setItem(CONFIG.STORAGE_KEYS.ELEVENLABS_VOICE_ID, elVoiceId);
+    }
+    setElevenLabsModelId(elModelId);
+
     // ReferenceImages 타입으로 전달 (강도 포함)
     const refImages: ReferenceImages = {
       character: characterRefImages,
@@ -465,11 +472,19 @@ const InputSection: React.FC<InputSectionProps> = ({ onGenerate, step }) => {
     };
 
     if (activeTab === 'auto') {
-      if (topic.trim()) onGenerate(topic, refImages, null);
+      if (!topic.trim()) {
+        alert('주제를 입력해주세요.');
+        return;
+      }
+      onGenerate(topic, refImages, null);
     } else {
-      if (manualScript.trim()) onGenerate("Manual Script Input", refImages, manualScript);
+      if (!manualScript.trim()) {
+        alert('대본을 입력해주세요.');
+        return;
+      }
+      onGenerate("Manual Script Input", refImages, manualScript);
     }
-  }, [isProcessing, activeTab, topic, characterRefImages, styleRefImages, characterStrength, styleStrength, manualScript, onGenerate]);
+  }, [isProcessing, activeTab, topic, manualScript, characterRefImages, styleRefImages, characterStrength, styleStrength, elVoiceId, elModelId, onGenerate]);
 
   // 캐릭터 참조 이미지 업로드 핸들러
   const handleCharacterImageChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -809,6 +824,20 @@ const InputSection: React.FC<InputSectionProps> = ({ onGenerate, step }) => {
               <p className="text-slate-500 text-xs">참조 이미지가 있으면 고정 프롬프트보다 우선 적용됩니다</p>
             </div>
           </div>
+
+          {(characterRefImages.length > 0 || styleRefImages.length > 0) && (
+            <div className="mb-4 p-3 bg-blue-900/20 border border-blue-700/30 rounded-xl">
+              <div className="flex items-start gap-2">
+                <span className="text-blue-400 text-sm mt-0.5">ℹ️</span>
+                <div className="text-xs text-blue-300/80">
+                  <p className="font-medium text-blue-300 mb-1">참조 이미지 적용 방식</p>
+                  <p>• <strong>APIYI 모드</strong>: chat/completions로 참조 이미지를 전달합니다 (최대 14장). gemini-2.5-flash-image, gemini-3-pro-image-preview 등 Gemini 계열 모델에서 지원됩니다.</p>
+                  <p>• <strong>gpt-image-1</strong> 모델은 참조 이미지를 지원하지 않습니다. Gemini 계열 모델을 선택해주세요.</p>
+                  <p className="mt-1 text-blue-400/60">강도 슬라이더: 낮을수록 자유로운 해석, 높을수록 원본에 충실</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* 캐릭터 참조 영역 */}
