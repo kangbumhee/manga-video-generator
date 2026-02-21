@@ -78,6 +78,11 @@ export const VIDEO_MODELS = {
     costPerVideo: 2.00,
     description: '최고 품질',
   },
+  'veo3-pro': {
+    name: 'Veo 3 Pro',
+    costPerVideo: 10.00,
+    description: '최고 품질 1080p',
+  },
 } as const;
 
 export type VideoModelId = keyof typeof VIDEO_MODELS;

@@ -19,14 +19,26 @@ type QualityPreset = {
 };
 
 const QUALITY_PRESETS: QualityPreset[] = [
-  { id: 'ultra-budget', name: '극한 절약', emoji: '💰', scriptModel: 'gemini-2.5-flash-lite', imageModel: 'gpt-image-1', imageQuality: 'low', videoMode: 'none', videoModel: '', videoSceneCount: 0, estimatedCost: '~160원', description: '정적 이미지만, 최저가' },
-  { id: 'budget-static', name: '가성비 정적', emoji: '⚡', scriptModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image-preview', imageQuality: 'standard', videoMode: 'none', videoModel: '', videoSceneCount: 0, estimatedCost: '~380원', description: 'Nano Banana 이미지, 영상변환 없음' },
-  { id: 'static-hd', name: '고화질 정적', emoji: '🎨', scriptModel: 'gemini-2.5-flash', imageModel: 'seedream-4-5-251128', imageQuality: 'standard', videoMode: 'none', videoModel: '', videoSceneCount: 0, estimatedCost: '~540원', description: 'SeeDream 4.5 이미지, 텍스트 렌더링 우수' },
-  { id: 'partial-video', name: '부분 영상', emoji: '🎬', scriptModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image-preview', imageQuality: 'standard', videoMode: 'partial', videoModel: 'sora_video2-landscape', videoSceneCount: 5, estimatedCost: '~1,430원', description: 'Nano Banana + Sora 2 5씬' },
-  { id: 'partial-video-hq', name: '부분 영상 고급', emoji: '✨', scriptModel: 'gemini-2.5-flash', imageModel: 'seedream-4-5-251128', imageQuality: 'standard', videoMode: 'partial', videoModel: 'sora-2-pro', videoSceneCount: 5, estimatedCost: '~6,360원', description: 'SeeDream 4.5 + Sora 2 Pro 5씬' },
-  { id: 'full-video', name: '전체 영상', emoji: '🎥', scriptModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image-preview', imageQuality: 'standard', videoMode: 'full', videoModel: 'sora_video2-landscape', videoSceneCount: 15, estimatedCost: '~3,170원', description: 'Nano Banana + Sora 2 전체' },
-  { id: 'full-video-hq', name: '전체 영상 고급', emoji: '🏆', scriptModel: 'gemini-3-flash-preview', imageModel: 'seedream-4-5-251128', imageQuality: 'standard', videoMode: 'full', videoModel: 'sora-2-pro', videoSceneCount: 15, estimatedCost: '~17,950원', description: 'SeeDream 4.5 + Sora 2 Pro 전체' },
-  { id: 'premium', name: '풀 프리미엄', emoji: '👑', scriptModel: 'gemini-3-pro-preview', imageModel: 'gemini-2.5-flash-image-preview', imageQuality: 'high', videoMode: 'full', videoModel: 'veo3-fast', videoSceneCount: 15, estimatedCost: '~44,600원', description: 'Nano Banana Pro + Veo 3 Fast 전체' },
+  { id: 'ultra-budget', name: '극한 절약', emoji: '🪙', scriptModel: 'gemini-2.5-flash-lite', imageModel: 'gpt-image-1', imageQuality: 'low', videoMode: 'none', videoModel: '', videoSceneCount: 0, estimatedCost: '~160원', description: '최저가 정적 이미지' },
+  { id: 'budget-static', name: '가성비 정적', emoji: '⚡', scriptModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image-preview', imageQuality: 'standard', videoMode: 'none', videoModel: '', videoSceneCount: 0, estimatedCost: '~560원', description: 'Nano Banana, 만화 최적' },
+  { id: 'standard-static', name: '표준 정적', emoji: '🎨', scriptModel: 'gemini-2.5-flash', imageModel: 'seedream-4-5-251128', imageQuality: 'standard', videoMode: 'none', videoModel: '', videoSceneCount: 0, estimatedCost: '~780원', description: 'SeeDream 4.5, 캐릭터 일관성' },
+  { id: 'hd-static', name: '고화질 정적', emoji: '💎', scriptModel: 'gemini-2.5-flash', imageModel: 'gemini-3-pro-image-preview', imageQuality: 'standard', videoMode: 'none', videoModel: '', videoSceneCount: 0, estimatedCost: '~1,100원', description: 'Nano Banana Pro, 4K HD' },
+  { id: 'partial-budget', name: '부분 영상 절약', emoji: '🎬', scriptModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image-preview', imageQuality: 'standard', videoMode: 'partial', videoModel: 'sora_video2-landscape', videoSceneCount: 5, estimatedCost: '~1,430원', description: 'Nano Banana + Sora2 5씬' },
+  { id: 'partial-standard', name: '부분 영상 표준', emoji: '🎥', scriptModel: 'gemini-2.5-flash', imageModel: 'seedream-4-5-251128', imageQuality: 'standard', videoMode: 'partial', videoModel: 'sora_video2-landscape', videoSceneCount: 5, estimatedCost: '~1,650원', description: 'SeeDream 4.5 + Sora2 5씬' },
+  { id: 'partial-hd', name: '부분 영상 고급', emoji: '🌟', scriptModel: 'gemini-2.5-flash', imageModel: 'gemini-3-pro-image-preview', imageQuality: 'standard', videoMode: 'partial', videoModel: 'sora-2-pro', videoSceneCount: 5, estimatedCost: '~6,900원', description: 'Nano Banana Pro + Sora2 Pro 5씬' },
+  { id: 'full-budget', name: '전체 영상 절약', emoji: '📹', scriptModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image-preview', imageQuality: 'standard', videoMode: 'full', videoModel: 'sora_video2-landscape', videoSceneCount: 15, estimatedCost: '~3,170원', description: 'Nano Banana + Sora2 전체' },
+  { id: 'full-standard', name: '전체 영상 표준', emoji: '🎞️', scriptModel: 'gemini-2.5-flash', imageModel: 'seedream-4-5-251128', imageQuality: 'standard', videoMode: 'full', videoModel: 'sora_video2-landscape', videoSceneCount: 15, estimatedCost: '~3,390원', description: 'SeeDream 4.5 + Sora2 전체' },
+  { id: 'full-hd', name: '전체 영상 고급', emoji: '🏆', scriptModel: 'gemini-2.5-flash', imageModel: 'gemini-3-pro-image-preview', imageQuality: 'standard', videoMode: 'full', videoModel: 'sora-2-pro', videoSceneCount: 15, estimatedCost: '~18,100원', description: 'Nano Banana Pro + Sora2 Pro 전체' },
+  { id: 'premium', name: '프리미엄', emoji: '👑', scriptModel: 'gemini-3-flash-preview', imageModel: 'gemini-3-pro-image-preview', imageQuality: 'standard', videoMode: 'full', videoModel: 'veo3-fast', videoSceneCount: 15, estimatedCost: '~44,600원', description: 'Nano Banana Pro + Veo3 전체' },
+  { id: 'ultra-premium', name: '풀 프리미엄', emoji: '💫', scriptModel: 'gemini-3-flash-preview', imageModel: 'gemini-3-pro-image-preview', imageQuality: 'standard', videoMode: 'full', videoModel: 'veo3-pro', videoSceneCount: 15, estimatedCost: '~219,000원', description: 'Nano Banana Pro + Veo3 Pro, 최고' },
+];
+
+// 프리셋 카테고리 (UI 그룹용)
+const PRESET_CATEGORIES: { label: string; presetIds: string[] }[] = [
+  { label: '정적 이미지', presetIds: ['ultra-budget', 'budget-static', 'standard-static', 'hd-static'] },
+  { label: '부분 영상 (5씬)', presetIds: ['partial-budget', 'partial-standard', 'partial-hd'] },
+  { label: '전체 영상 (15씬)', presetIds: ['full-budget', 'full-standard', 'full-hd'] },
+  { label: '프리미엄', presetIds: ['premium', 'ultra-premium'] },
 ];
 
 // Gemini 스타일 맵
@@ -483,25 +495,36 @@ const InputSection: React.FC<InputSectionProps> = ({ onGenerate, step }) => {
       {/* 퀄리티 프리셋 선택 */}
       <div className="mb-6">
         <h3 className="text-sm font-bold text-slate-400 mb-3">🎛️ 퀄리티 프리셋</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {QUALITY_PRESETS.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => handlePresetChange(preset.id)}
-              className={`p-3 rounded-xl border text-left transition-all ${
-                selectedPreset === preset.id
-                  ? 'border-brand-500 bg-brand-500/10 ring-1 ring-brand-500/30'
-                  : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
-              }`}
-            >
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="text-lg">{preset.emoji}</span>
-                <span className="text-xs font-bold text-white">{preset.name}</span>
+        <div className="space-y-4">
+          {PRESET_CATEGORIES.map((cat) => (
+            <div key={cat.label}>
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">🏷️ {cat.label}</div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {cat.presetIds.map((id) => {
+                  const preset = QUALITY_PRESETS.find(p => p.id === id);
+                  if (!preset) return null;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => handlePresetChange(preset.id)}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        selectedPreset === preset.id
+                          ? 'border-brand-500 bg-brand-500/10 ring-1 ring-brand-500/30'
+                          : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-lg">{preset.emoji}</span>
+                        <span className="text-xs font-bold text-white">{preset.name}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 mb-1">{preset.description}</div>
+                      <div className="text-xs font-bold text-brand-400">{preset.estimatedCost}</div>
+                    </button>
+                  );
+                })}
               </div>
-              <div className="text-[10px] text-slate-400 mb-1">{preset.description}</div>
-              <div className="text-xs font-bold text-brand-400">{preset.estimatedCost}</div>
-            </button>
+            </div>
           ))}
         </div>
         {(() => {
@@ -513,7 +536,7 @@ const InputSection: React.FC<InputSectionProps> = ({ onGenerate, step }) => {
               <span>🖼️ 이미지: <strong className="text-slate-300">{p.imageModel} ({p.imageQuality})</strong></span>
               <span>🎬 영상: <strong className="text-slate-300">{p.videoMode === 'none' ? '변환 없음' : `${p.videoModel} ${p.videoSceneCount}씬`}</strong></span>
               <span>🎤 음성: <strong className="text-slate-300">ElevenLabs (항상 사용)</strong></span>
-              <span>💵 예상 비용: <strong className="text-brand-400">{p.estimatedCost}</strong></span>
+              <span>💵 예상 총 비용: <strong className="text-brand-400">{p.estimatedCost}</strong></span>
             </div>
           );
         })()}

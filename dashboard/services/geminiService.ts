@@ -679,7 +679,7 @@ export const generateImageForScene = async (
           const imageQuality = typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_image_quality') || 'low' : 'low';
 
           const isGptImage = imageModel === 'gpt-image-1' || imageModel === 'gpt-image-1.5';
-          const isSeedreamOrGemini = imageModel === 'seedream-4-5-251128' || imageModel === 'gemini-2.5-flash-image-preview';
+          const isSeedreamOrGemini = imageModel === 'seedream-4-5-251128' || imageModel === 'gemini-2.5-flash-image-preview' || imageModel === 'gemini-3-pro-image-preview';
 
           const body: Record<string, unknown> = {
             model: imageModel,
