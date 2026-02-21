@@ -113,8 +113,9 @@ export const CONFIG = {
   VIDEO_WIDTH: 1280,
   VIDEO_HEIGHT: 720,
 
-  // 로컬 스토리지 키 이름 (내부 관리용)
+  // 로컬 스토리지 키 이름 (내부 관리용, Chrome Extension: chrome.storage와 동기화)
   STORAGE_KEYS: {
+    GEMINI_API_KEY: 'tubegen_gemini_key',
     APIYI_API_KEY: 'tubegen_apiyi_key',
     ELEVENLABS_API_KEY: 'tubegen_el_key',
     ELEVENLABS_VOICE_ID: 'tubegen_el_voice',

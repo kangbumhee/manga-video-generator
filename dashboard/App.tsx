@@ -62,20 +62,22 @@ const App: React.FC = () => {
   }, []);
 
   // Chrome Extension: chrome.storage → localStorage 동기화
+  const [storageSynced, setStorageSynced] = useState(false);
   useEffect(() => {
-    const syncStorage = () => {
-      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-        chrome.storage.local.get(null, (items: Record<string, string>) => {
-          if (items && typeof localStorage !== 'undefined') {
-            Object.entries(items).forEach(([k, v]) => {
-              if (v != null && typeof v === 'string') localStorage.setItem(k, v);
-            });
-            setViewMode(prev => prev); // 리렌더 트리거
-          }
-        });
-      }
-    };
-    syncStorage();
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.get(null, (items: Record<string, string>) => {
+        if (items && typeof localStorage !== 'undefined') {
+          Object.entries(items).forEach(([k, v]) => {
+            if (v != null && typeof v === 'string') localStorage.setItem(k, v);
+          });
+          setStorageSynced(true);
+        } else {
+          setStorageSynced(true);
+        }
+      });
+    } else {
+      setStorageSynced(true);
+    }
   }, []);
 
   // URL hash 변경 감지 (#settings)
@@ -161,10 +163,28 @@ const App: React.FC = () => {
     isProcessingRef.current = true;
     isAbortedRef.current = false;
 
-    setStep(GenerationStep.SCRIPTING);
-    setProgressMessage('V9.2 Ultra 엔진 부팅 중...');
-
     try {
+      // API 키 체크 - APIYI 키 또는 Gemini 키가 있어야 함
+      const apiyiKey = typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_apiyi_key') : null;
+      const geminiKey = typeof process !== 'undefined' ? (process as any).env?.GEMINI_API_KEY : null;
+
+      if (!apiyiKey && !geminiKey) {
+        const goToSettings = confirm(
+          'API 키가 설정되지 않았습니다.\n\n' +
+          'APIYI API 키를 설정 페이지에서 입력해주세요.\n' +
+          '(APIYI 가입 시 300만 토큰 무료!)\n\n' +
+          '설정 페이지로 이동하시겠습니까?'
+        );
+        if (goToSettings) {
+          setViewMode('settings');
+        }
+        isProcessingRef.current = false;
+        return;
+      }
+
+      setStep(GenerationStep.SCRIPTING);
+      setProgressMessage('V9.2 Ultra 엔진 부팅 중...');
+
       const hasKey = await checkApiKeyStatus();
       if (!hasKey && (window as any).aistudio) {
         await (window as any).aistudio.openSelectKey();
@@ -642,13 +662,38 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* 설정 뷰 */}
-      {viewMode === 'settings' && (
-        <SettingsPage />
-      )}
+      {/* 메인 뷰 - 숨기기만 하고 언마운트하지 않음 */}
+      <div style={{ display: viewMode === 'main' ? 'block' : 'none' }}>
+        <main className="py-8">
+          <InputSection onGenerate={handleGenerate} step={step} />
+          
+          {step !== GenerationStep.IDLE && (
+            <div className="max-w-7xl mx-auto px-4 text-center mb-12">
+               <div className="inline-flex items-center gap-4 px-6 py-3 rounded-2xl border bg-slate-900 border-slate-800 shadow-2xl">
+                  {step === GenerationStep.SCRIPTING || step === GenerationStep.ASSETS ? (
+                    <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent animate-spin rounded-full"></div>
+                  ) : <div className={`w-2 h-2 rounded-full ${step === GenerationStep.ERROR ? 'bg-red-500' : 'bg-green-500'}`}></div>}
+                  <span className="text-sm font-bold text-slate-300">{progressMessage}</span>
+                  {(step === GenerationStep.SCRIPTING || step === GenerationStep.ASSETS) && (
+                    <button onClick={handleAbort} className="ml-2 px-3 py-1 rounded-lg bg-red-600/20 text-red-500 text-[10px] font-black uppercase tracking-widest border border-red-500/30">Stop</button>
+                  )}
+               </div>
+            </div>
+          )}
 
-      {/* 갤러리 뷰 */}
-      {viewMode === 'gallery' && (
+          <ResultTable
+              data={generatedData}
+              onRegenerateImage={handleRegenerateImage}
+              onExportVideo={triggerVideoExport}
+              isExporting={isVideoGenerating}
+              animatingIndices={animatingIndices}
+              onGenerateAnimation={handleGenerateAnimation}
+          />
+        </main>
+      </div>
+
+      {/* 갤러리 뷰 - 숨기기만 하고 언마운트하지 않음 */}
+      <div style={{ display: viewMode === 'gallery' ? 'block' : 'none' }}>
         <ProjectGallery
           projects={savedProjects}
           onBack={() => setViewMode('main')}
@@ -656,37 +701,12 @@ const App: React.FC = () => {
           onRefresh={refreshProjects}
           onLoad={handleLoadProject}
         />
-      )}
+      </div>
 
-      {/* 메인 뷰 */}
-      {viewMode === 'main' && (
-      <main className="py-8">
-        <InputSection onGenerate={handleGenerate} step={step} />
-        
-        {step !== GenerationStep.IDLE && (
-          <div className="max-w-7xl mx-auto px-4 text-center mb-12">
-             <div className="inline-flex items-center gap-4 px-6 py-3 rounded-2xl border bg-slate-900 border-slate-800 shadow-2xl">
-                {step === GenerationStep.SCRIPTING || step === GenerationStep.ASSETS ? (
-                  <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent animate-spin rounded-full"></div>
-                ) : <div className={`w-2 h-2 rounded-full ${step === GenerationStep.ERROR ? 'bg-red-500' : 'bg-green-500'}`}></div>}
-                <span className="text-sm font-bold text-slate-300">{progressMessage}</span>
-                {(step === GenerationStep.SCRIPTING || step === GenerationStep.ASSETS) && (
-                  <button onClick={handleAbort} className="ml-2 px-3 py-1 rounded-lg bg-red-600/20 text-red-500 text-[10px] font-black uppercase tracking-widest border border-red-500/30">Stop</button>
-                )}
-             </div>
-          </div>
-        )}
-
-        <ResultTable
-            data={generatedData}
-            onRegenerateImage={handleRegenerateImage}
-            onExportVideo={triggerVideoExport}
-            isExporting={isVideoGenerating}
-            animatingIndices={animatingIndices}
-            onGenerateAnimation={handleGenerateAnimation}
-        />
-      </main>
-      )}
+      {/* 설정 뷰 */}
+      <div style={{ display: viewMode === 'settings' ? 'block' : 'none' }}>
+        <SettingsPage />
+      </div>
     </div>
   );
 };
