@@ -495,75 +495,84 @@ const InputSection: React.FC<InputSectionProps> = ({ onGenerate, step }) => {
       </div>
 
       {/* 퀄리티 프리셋 선택 */}
-      <div className="mb-6">
-        <button
-          type="button"
-          onClick={() => setIsPresetOpen(!isPresetOpen)}
-          className="w-full flex items-center justify-between text-left mb-3"
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-slate-400">🎛️ 퀄리티 프리셋</span>
-            {(() => {
-              const p = QUALITY_PRESETS.find(x => x.id === selectedPreset);
-              if (p && !isPresetOpen) {
-                return (
-                  <span className="text-xs text-slate-500">
-                    {p.emoji} {p.name} ({p.estimatedCost})
-                  </span>
-                );
-              }
-              return null;
-            })()}
-          </div>
-          <span className="text-slate-500 text-xs">{isPresetOpen ? '▼' : '▶'}</span>
-        </button>
-        {isPresetOpen && (
-        <div className="space-y-4">
-          {PRESET_CATEGORIES.map((cat) => (
-            <div key={cat.label}>
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">🏷️ {cat.label}</div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {cat.presetIds.map((id) => {
-                  const preset = QUALITY_PRESETS.find(p => p.id === id);
-                  if (!preset) return null;
-                  return (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => handlePresetChange(preset.id)}
-                      className={`p-3 rounded-xl border text-left transition-all ${
-                        selectedPreset === preset.id
-                          ? 'border-brand-500 bg-brand-500/10 ring-1 ring-brand-500/30'
-                          : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <span className="text-lg">{preset.emoji}</span>
-                        <span className="text-xs font-bold text-white">{preset.name}</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400 mb-1">{preset.description}</div>
-                      <div className="text-xs font-bold text-brand-400">{preset.estimatedCost}</div>
-                    </button>
-                  );
-                })}
+      <div className="mb-4">
+        <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-2xl backdrop-blur-sm">
+          <button
+            type="button"
+            onClick={() => setIsPresetOpen(!isPresetOpen)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center">
+                <span className="text-sm">🎛️</span>
+              </div>
+              <div>
+                <h3 className="text-white font-bold text-sm">퀄리티 프리셋</h3>
+                <p className="text-slate-500 text-xs">
+                  {(() => {
+                    const p = QUALITY_PRESETS.find(x => x.id === selectedPreset);
+                    return p ? `${p.emoji} ${p.name} (${p.estimatedCost})` : '프리셋을 선택하세요';
+                  })()}
+                </p>
               </div>
             </div>
-          ))}
-        </div>
-        )}
-        {(() => {
-          const p = QUALITY_PRESETS.find(x => x.id === selectedPreset);
-          if (!p) return null;
-          return (
-            <div className="mt-3 p-3 bg-slate-800/50 rounded-xl border border-slate-700 text-xs text-slate-400 flex flex-wrap gap-x-6 gap-y-1">
-              <span>📝 스크립트: <strong className="text-slate-300">{p.scriptModel}</strong></span>
-              <span>🖼️ 이미지: <strong className="text-slate-300">{p.imageModel} ({p.imageQuality})</strong></span>
-              <span>🎬 영상: <strong className="text-slate-300">{p.videoMode === 'none' ? '변환 없음' : `${p.videoModel} ${p.videoSceneCount}씬`}</strong></span>
-              <span>🎤 음성: <strong className="text-slate-300">ElevenLabs (항상 사용)</strong></span>
-              <span>💵 예상 총 비용: <strong className="text-brand-400">{p.estimatedCost}</strong></span>
+            <svg className={`w-5 h-5 text-slate-500 transition-transform ${isPresetOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {isPresetOpen && (
+            <div className="mt-4 pt-4 border-t border-slate-800 space-y-4">
+              {PRESET_CATEGORIES.map((cat) => (
+                <div key={cat.label}>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">🏷️ {cat.label}</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {cat.presetIds.map((id) => {
+                      const preset = QUALITY_PRESETS.find(p => p.id === id);
+                      if (!preset) return null;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => handlePresetChange(preset.id)}
+                          className={`p-3 rounded-xl border text-left transition-all ${
+                            selectedPreset === preset.id
+                              ? 'border-brand-500 bg-brand-500/10 ring-1 ring-brand-500/30'
+                              : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-lg">{preset.emoji}</span>
+                            <span className="text-xs font-bold text-white">{preset.name}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 mb-1">{preset.description}</div>
+                          <div className="text-xs font-bold text-brand-400">{preset.estimatedCost}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
-          );
-        })()}
+          )}
+
+          {/* 선택된 프리셋 상세 정보 (항상 표시) */}
+          {(() => {
+            const p = QUALITY_PRESETS.find(x => x.id === selectedPreset);
+            if (!p) return null;
+            return (
+              <div className="mt-4 pt-4 border-t border-slate-800">
+                <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-700 text-xs text-slate-400 flex flex-wrap gap-x-6 gap-y-1">
+                  <span>📝 스크립트: <strong className="text-slate-300">{p.scriptModel}</strong></span>
+                  <span>🖼️ 이미지: <strong className="text-slate-300">{p.imageModel} ({p.imageQuality})</strong></span>
+                  <span>🎬 영상: <strong className="text-slate-300">{p.videoMode === 'none' ? '변환 없음' : `${p.videoModel} ${p.videoSceneCount}씬`}</strong></span>
+                  <span>🎤 음성: <strong className="text-slate-300">ElevenLabs (항상 사용)</strong></span>
+                  <span>💵 예상 총 비용: <strong className="text-brand-400">{p.estimatedCost}</strong></span>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
       </div>
 
       <div className="mb-4 flex flex-col gap-4">
