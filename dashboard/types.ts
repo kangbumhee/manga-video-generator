@@ -121,6 +121,7 @@ export enum GenerationStep {
 
 // 비용 추적
 export interface CostBreakdown {
+  script: number;      // 스크립트 생성 비용
   images: number;      // 이미지 생성 비용
   tts: number;         // TTS 비용
   videos: number;      // 영상 생성 비용

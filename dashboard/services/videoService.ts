@@ -477,18 +477,22 @@ export const generateVideo = async (
         return;
       }
 
-      // 현재 오디오 타임스탬프에 '절대 동기화'된 장면 찾기 (경계값 포함)
-      let currentScene = preparedScenes.find(s =>
-        elapsed >= s.startTime && elapsed <= s.endTime
+      // 현재 오디오 타임스탬프에 '절대 동기화'된 장면 찾기
+      // 경계: elapsed < endTime (배타적) 사용 → 정확한 경계에서 다음 씬으로 전환
+      let currentSceneIndex = preparedScenes.findIndex(s =>
+        elapsed >= s.startTime && elapsed < s.endTime
       );
+      let currentScene = currentSceneIndex >= 0 ? preparedScenes[currentSceneIndex] : null;
 
-      // 씬을 못 찾으면 가장 가까운 씬 선택
+      // 씬을 못 찾으면 가장 가까운 씬 선택 (음수 시간 또는 경계 근처)
       if (!currentScene) {
         if (elapsed < 0 || elapsed < preparedScenes[0].startTime) {
           currentScene = preparedScenes[0];
+          currentSceneIndex = 0;
         } else {
-          // elapsed 이후로 시작하는 가장 가까운 씬 또는 마지막 씬
-          currentScene = preparedScenes.find(s => elapsed < s.startTime) || preparedScenes[preparedScenes.length - 1];
+          const nextScene = preparedScenes.find(s => elapsed < s.startTime);
+          currentScene = nextScene || preparedScenes[preparedScenes.length - 1];
+          currentSceneIndex = nextScene ? preparedScenes.indexOf(nextScene) : preparedScenes.length - 1;
         }
       }
 
@@ -533,9 +537,14 @@ export const generateVideo = async (
           }
         }
 
-        // 자막 렌더링 (청크 기반)
-        const sceneElapsed = elapsed - currentScene.startTime;
-        renderSubtitle(ctx, canvas, currentScene.subtitleChunks, sceneElapsed, config);
+        // 자막 렌더링 (청크 기반) - sceneElapsed = 씬 내 로컬 시간 (0초 시작)
+        const sceneElapsed = Math.max(0, elapsed - currentScene.startTime);
+        const chunks = currentScene.subtitleChunks;
+        // 디버그: 각 씬의 첫 프레임에서 한 번만 로그 (프레임 인덱스로 억제)
+        if (chunks.length > 0 && sceneElapsed < 0.05) {
+          console.log(`[Video Render] 씬 ${(currentSceneIndex ?? preparedScenes.indexOf(currentScene)) + 1}: localTime=${sceneElapsed.toFixed(3)}, 자막 청크 수=${chunks.length}, 첫 청크 시작=${chunks[0]?.startTime?.toFixed(3)}`);
+        }
+        renderSubtitle(ctx, canvas, chunks, sceneElapsed, config);
 
         // 자막 타이밍 기록 (실제 표시되는 것과 동일하게)
         const currentChunk = getCurrentChunk(currentScene.subtitleChunks, sceneElapsed);

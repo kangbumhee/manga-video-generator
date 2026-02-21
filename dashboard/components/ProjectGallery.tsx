@@ -105,6 +105,9 @@ const ProjectGallery: React.FC<ProjectGalleryProps> = ({
             <div className="mt-3 pt-3 border-t border-slate-800">
               <div className="flex flex-wrap items-center gap-4 text-xs">
                 <span className="text-slate-500">비용:</span>
+                {'script' in selectedProject.cost && selectedProject.cost.script > 0 && (
+                  <span className="text-slate-300">스크립트 {formatKRW(selectedProject.cost.script)}</span>
+                )}
                 <span className="text-slate-300">
                   이미지 {selectedProject.cost.imageCount}장 {formatKRW(selectedProject.cost.images)}
                 </span>

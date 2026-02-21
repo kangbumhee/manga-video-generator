@@ -1,18 +1,20 @@
 
 import React, { useRef, useState, useEffect, memo } from 'react';
-import { GeneratedAsset } from '../types';
+import { GeneratedAsset, CostBreakdown } from '../types';
 import { downloadProjectZip } from '../utils/csvHelper';
 import { downloadSrt } from '../services/srtService';
 import { exportAssetsToZip } from '../services/exportService';
+import { getImageModelCost, getVideoModelCost, formatKRW, PRICING } from '../config';
 
 interface ResultTableProps {
   data: GeneratedAsset[];
+  currentCost?: CostBreakdown | null;
   onRegenerateImage?: (index: number) => void;
   onUpgradeImage?: (index: number) => void;
   onExportVideo?: (enableSubtitles: boolean) => void;
-  onGenerateAnimation?: (index: number) => void;  // 영상 변환 콜백
+  onGenerateAnimation?: (index: number) => void;
   isExporting?: boolean;
-  animatingIndices?: Set<number>;  // 현재 영상 변환 중인 인덱스들
+  animatingIndices?: Set<number>;
 }
 
 // 오디오 디코딩 함수 (컴포넌트 외부로 이동하여 재생성 방지)
@@ -123,6 +125,14 @@ const AudioPlayer: React.FC<{ base64: string }> = memo(({ base64 }) => {
 
 AudioPlayer.displayName = 'AudioPlayer';
 
+// 씬별 비용 계산
+function getSceneCost(row: GeneratedAsset): { image: number; tts: number; video: number; total: number } {
+  const image = row.imageData ? getImageModelCost() : 0;
+  const tts = row.audioData ? row.narration.length * PRICING.TTS.perCharacter : 0;
+  const video = row.videoData ? getVideoModelCost() : 0;
+  return { image, tts, video, total: image + tts + video };
+}
+
 // 테이블 행 컴포넌트 (개별 행 메모이제이션으로 리렌더 최소화)
 interface TableRowProps {
   row: GeneratedAsset;
@@ -133,6 +143,7 @@ interface TableRowProps {
 }
 
 const TableRow: React.FC<TableRowProps> = memo(({ row, index, isAnimating, onRegenerateImage, onGenerateAnimation }) => {
+  const sceneCost = getSceneCost(row);
   return (
     <tr className="group hover:bg-slate-800/20 transition-colors">
       <td className="py-5 px-6 align-top font-mono text-slate-600 text-[10px]">#{row.sceneNumber.toString().padStart(2, '0')}</td>
@@ -225,18 +236,32 @@ const TableRow: React.FC<TableRowProps> = memo(({ row, index, isAnimating, onReg
       <td className="py-5 px-6 align-top text-center">
         {row.audioData ? <div className="flex justify-center"><AudioPlayer base64={row.audioData} /></div> : <div className="flex flex-col items-center gap-1.5 opacity-30"><div className="w-2.5 h-2.5 border-2 border-slate-700 border-t-slate-500 animate-spin rounded-full"></div><span className="text-[6px] text-slate-600 font-black uppercase">VO</span></div>}
       </td>
+      <td className="py-5 px-6 align-top">
+        <div className="text-[9px] text-slate-500 font-mono min-w-[100px]">
+          {sceneCost.total > 0 ? (
+            <>
+              {sceneCost.image > 0 && <div>이미지 {formatKRW(sceneCost.image)}</div>}
+              {sceneCost.tts > 0 && <div>TTS {formatKRW(sceneCost.tts)}</div>}
+              {sceneCost.video > 0 && <div>영상 {formatKRW(sceneCost.video)}</div>}
+              <div className="text-brand-400 font-bold mt-1">= {formatKRW(sceneCost.total)}</div>
+            </>
+          ) : (
+            <span className="text-slate-600">-</span>
+          )}
+        </div>
+      </td>
     </tr>
   );
 });
 
 TableRow.displayName = 'TableRow';
 
-const ResultTable: React.FC<ResultTableProps> = ({ data, onRegenerateImage, onExportVideo, onGenerateAnimation, isExporting, animatingIndices }) => {
+const ResultTable: React.FC<ResultTableProps> = ({ data, currentCost, onRegenerateImage, onExportVideo, onGenerateAnimation, isExporting, animatingIndices }) => {
   if (data.length === 0) return null;
 
   return (
     <div className="w-full max-w-[98%] mx-auto pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-center justify-between mb-6 bg-slate-900/90 backdrop-blur-md p-5 rounded-3xl border border-slate-800">
+      <div className="flex items-center justify-between mb-4 bg-slate-900/90 backdrop-blur-md p-5 rounded-3xl border border-slate-800">
         <div className="flex items-center gap-4">
           <div className="w-1 h-10 bg-brand-500 rounded-full"></div>
           <div>
@@ -268,6 +293,19 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, onRegenerateImage, onEx
         </div>
       </div>
 
+      {currentCost && currentCost.total > 0 && (
+      <div className="mb-6 p-4 rounded-2xl bg-slate-800/50 border border-slate-700">
+        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">📊 생성 비용 상세</div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs text-slate-300">
+          {(currentCost.script ?? 0) > 0 && <div className="flex justify-between sm:flex-col sm:gap-0"><span>스크립트</span><span className="font-mono text-brand-400">≈ {formatKRW(currentCost.script!)}</span></div>}
+          {currentCost.imageCount > 0 && <div className="flex justify-between sm:flex-col sm:gap-0"><span>이미지 {currentCost.imageCount}씬</span><span className="font-mono text-brand-400">= {formatKRW(currentCost.images)}</span></div>}
+          {currentCost.ttsCharacters > 0 && <div className="flex justify-between sm:flex-col sm:gap-0"><span>TTS {currentCost.ttsCharacters}자</span><span className="font-mono text-brand-400">= {formatKRW(currentCost.tts)}</span></div>}
+          {currentCost.videoCount > 0 && <div className="flex justify-between sm:flex-col sm:gap-0"><span>영상 {currentCost.videoCount}개</span><span className="font-mono text-brand-400">= {formatKRW(currentCost.videos)}</span></div>}
+          <div className="col-span-2 sm:col-span-1 border-t sm:border-t-0 sm:border-l border-slate-700 pt-2 sm:pt-0 sm:pl-2 flex justify-between sm:flex-col font-bold text-brand-400"><span>합계</span><span className="font-mono">= {formatKRW(currentCost.total)}</span></div>
+        </div>
+      </div>
+      )}
+
       <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/20 backdrop-blur-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[1200px] table-fixed">
@@ -278,6 +316,7 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, onRegenerateImage, onEx
                 <th className="py-4 px-6 text-[9px] font-black text-slate-500 uppercase tracking-widest w-[30%]">V9.2 통합 영문 프롬프트</th>
                 <th className="py-4 px-6 text-[9px] font-black text-slate-500 uppercase tracking-widest w-56 text-center">생성 결과물</th>
                 <th className="py-4 px-6 text-[9px] font-black text-slate-500 uppercase tracking-widest w-20 text-center">음성</th>
+                <th className="py-4 px-6 text-[9px] font-black text-slate-500 uppercase tracking-widest w-28 text-center">비용</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/40">

@@ -5,14 +5,14 @@ import InputSection from './components/InputSection';
 import ResultTable from './components/ResultTable';
 import { GeneratedAsset, GenerationStep, ScriptScene, CostBreakdown, ReferenceImages, DEFAULT_REFERENCE_IMAGES } from './types';
 import { generateScript, generateScriptChunked, findTrendingTopics, generateAudioForScene, generateMotionPrompt } from './services/geminiService';
-import { generateImage, getSelectedImageModel } from './services/imageService';
+import { generateImage } from './services/imageService';
 import { generateAudioWithElevenLabs } from './services/elevenLabsService';
 import { generateVideo, VideoGenerationResult } from './services/videoService';
 import { downloadSrtFromRecorded } from './services/srtService';
 import { generateVideoFromImage, getFalApiKey } from './services/videoGenerationService';
 import { saveProject, getSavedProjects, deleteProject, migrateFromLocalStorage } from './services/projectService';
 import { SavedProject } from './types';
-import { CONFIG, PRICING, formatKRW, getVideoModelCost } from './config';
+import { CONFIG, PRICING, formatKRW, getVideoModelCost, getImageModelCost } from './config';
 import ProjectGallery from './components/ProjectGallery';
 import SettingsPage from './components/SettingsPage';
 import * as FileSaver from 'file-saver';
@@ -43,7 +43,7 @@ const App: React.FC = () => {
   // 비용 추적
   const [currentCost, setCurrentCost] = useState<CostBreakdown | null>(null);
   const costRef = useRef<CostBreakdown>({
-    images: 0, tts: 0, videos: 0, total: 0,
+    script: 0, images: 0, tts: 0, videos: 0, total: 0,
     imageCount: 0, ttsCharacters: 0, videoCount: 0
   });
 
@@ -123,8 +123,10 @@ const App: React.FC = () => {
   };
 
   // 비용 추가 헬퍼
-  const addCost = (type: 'image' | 'tts' | 'video', amount: number, count: number = 1) => {
-    if (type === 'image') {
+  const addCost = (type: 'script' | 'image' | 'tts' | 'video', amount: number, count: number = 1) => {
+    if (type === 'script') {
+      costRef.current.script += amount;
+    } else if (type === 'image') {
       costRef.current.images += amount;
       costRef.current.imageCount += count;
     } else if (type === 'tts') {
@@ -134,14 +136,14 @@ const App: React.FC = () => {
       costRef.current.videos += amount;
       costRef.current.videoCount += count;
     }
-    costRef.current.total = costRef.current.images + costRef.current.tts + costRef.current.videos;
+    costRef.current.total = costRef.current.script + costRef.current.images + costRef.current.tts + costRef.current.videos;
     setCurrentCost({ ...costRef.current });
   };
 
   // 비용 초기화
   const resetCost = () => {
     costRef.current = {
-      images: 0, tts: 0, videos: 0, total: 0,
+      script: 0, images: 0, tts: 0, videos: 0, total: 0,
       imageCount: 0, ttsCharacters: 0, videoCount: 0
     };
     setCurrentCost(null);
@@ -245,6 +247,7 @@ const App: React.FC = () => {
         scriptScenes = await generateScript(targetTopic, hasRefImages, sourceText);
       }
       if (isAbortedRef.current) return;
+      addCost('script', PRICING.SCRIPT_GENERATION, 1);
       
       const initialAssets = scriptScenes.map(scene => ({
         ...scene, imageData: null, audioData: null, audioDuration: null, subtitleData: null, videoData: null, videoDuration: null, status: 'pending' as const
@@ -289,6 +292,7 @@ const App: React.FC = () => {
                         // TTS 비용 추가
                         const charCount = assetsRef.current[i].narration.length;
                         addCost('tts', charCount * PRICING.TTS.perCharacter, charCount);
+                        setProgressMessage(`🎤 씬 ${i + 1} 음성 생성 완료 (+${formatKRW(charCount * PRICING.TTS.perCharacter)})`);
                         success = true;
                         console.log(`[TTS] 씬 ${i + 1} 음성 생성 완료`);
                       } else {
@@ -324,8 +328,7 @@ const App: React.FC = () => {
 
       const runImages = async () => {
           const MAX_RETRIES = 2; // 최대 재시도 횟수
-          const imageModel = getSelectedImageModel();
-          const imagePrice = PRICING.IMAGE[imageModel as keyof typeof PRICING.IMAGE] || 0.01;
+          const imagePrice = getImageModelCost();
 
           for (let i = 0; i < initialAssets.length; i++) {
               if (isAbortedRef.current) break;
@@ -352,6 +355,7 @@ const App: React.FC = () => {
                           updateAssetAt(i, { imageData: img, status: 'completed' });
                           // 이미지 비용 추가
                           addCost('image', imagePrice, 1);
+                          setProgressMessage(`📸 씬 ${i + 1} 이미지 생성 완료 (+${formatKRW(imagePrice)})`);
                           success = true;
                       } else {
                           throw new Error('이미지 데이터가 비어있습니다');
@@ -440,7 +444,12 @@ const App: React.FC = () => {
 
       // 비용 요약 메시지 (원화)
       const cost = costRef.current;
-      const costMsg = `이미지 ${cost.imageCount}장 ${formatKRW(cost.images)} + TTS ${cost.ttsCharacters}자 ${formatKRW(cost.tts)} = 총 ${formatKRW(cost.total)}`;
+      const parts: string[] = [];
+      if (cost.script > 0) parts.push(`스크립트 ${formatKRW(cost.script)}`);
+      if (cost.imageCount > 0) parts.push(`이미지 ${cost.imageCount}장 ${formatKRW(cost.images)}`);
+      if (cost.ttsCharacters > 0) parts.push(`TTS ${cost.ttsCharacters}자 ${formatKRW(cost.tts)}`);
+      if (cost.videoCount > 0) parts.push(`영상 ${cost.videoCount}개 ${formatKRW(cost.videos)}`);
+      const costMsg = parts.length > 0 ? parts.join(' + ') + ` = 총 ${formatKRW(cost.total)}` : `총 ${formatKRW(cost.total)}`;
       setProgressMessage(`생성 완료! ${costMsg}`);
 
       // 자동 저장 (비용 정보 포함)
@@ -486,8 +495,7 @@ const App: React.FC = () => {
         if (img && !isAbortedRef.current) {
           updateAssetAt(idx, { imageData: img, status: 'completed' });
           // 이미지 비용 추가
-          const imageModel = getSelectedImageModel();
-          const imagePrice = PRICING.IMAGE[imageModel as keyof typeof PRICING.IMAGE] || 0.01;
+          const imagePrice = getImageModelCost();
           addCost('image', imagePrice, 1);
           setProgressMessage(`씬 ${idx + 1} 이미지 재생성 완료! (+${formatKRW(imagePrice)})`);
           success = true;
@@ -547,8 +555,9 @@ const App: React.FC = () => {
           videoDuration: CONFIG.ANIMATION.VIDEO_DURATION
         });
         // 영상 비용 추가
-        addCost('video', getVideoModelCost(), 1);
-        setProgressMessage(`씬 ${idx + 1} 영상 변환 완료! (+${formatKRW(getVideoModelCost())})`);
+        const videoPrice = getVideoModelCost();
+        addCost('video', videoPrice, 1);
+        setProgressMessage(`🎬 씬 ${idx + 1} 영상 변환 완료! (+${formatKRW(videoPrice)})`);
       } else {
         setProgressMessage(`씬 ${idx + 1} 영상 변환 실패`);
       }
@@ -599,13 +608,29 @@ const App: React.FC = () => {
 
   // 프로젝트 불러오기 핸들러
   const handleLoadProject = (project: SavedProject) => {
-    // 저장된 에셋을 현재 상태로 로드
     assetsRef.current = project.assets;
     setGeneratedData([...project.assets]);
     setCurrentTopic(project.topic);
     setStep(GenerationStep.COMPLETED);
     setProgressMessage(`"${project.name}" 프로젝트 불러옴`);
-    setViewMode('main'); // 메인 뷰로 전환
+    setViewMode('main');
+    // 비용 정보 복원 (하위 호환: script 없을 수 있음)
+    if (project.cost) {
+      const c = project.cost;
+      costRef.current = {
+        script: c.script ?? 0,
+        images: c.images,
+        tts: c.tts,
+        videos: c.videos,
+        total: c.total,
+        imageCount: c.imageCount,
+        ttsCharacters: c.ttsCharacters,
+        videoCount: c.videoCount
+      };
+      setCurrentCost({ ...costRef.current });
+    } else {
+      resetCost();
+    }
   };
 
   return (
@@ -690,6 +715,7 @@ const App: React.FC = () => {
 
           <ResultTable
               data={generatedData}
+              currentCost={currentCost}
               onRegenerateImage={handleRegenerateImage}
               onExportVideo={triggerVideoExport}
               isExporting={isVideoGenerating}

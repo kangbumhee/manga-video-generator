@@ -89,20 +89,34 @@ export type VideoModelId = keyof typeof VIDEO_MODELS;
 
 // 가격 정보 (USD)
 export const PRICING = {
-  // 환율 (USD → KRW)
   USD_TO_KRW: 1450,
+  KRW_PER_USD: 1450,
 
-  // 이미지 생성 (Gemini만 지원)
+  // 스크립트 생성 (1회)
+  SCRIPT_GENERATION: 0.01,
+
+  // 이미지 생성 (모델별 장당 단가)
   IMAGE: {
-    'gemini-2.5-flash-image': 0.0315,  // $0.0315/image
+    'gemini-2.5-flash-image': 0.0315,
+    'gpt-image-1': 0.011,
+    'gemini-2.5-flash-image-preview': 0.025,
+    'seedream-4-5-251128': 0.035,
+    'gemini-3-pro-image-preview': 0.05,
   },
-  // TTS (ElevenLabs) - 글자당 가격
+  // TTS (ElevenLabs) - 1000자당 약 $0.03
   TTS: {
-    perCharacter: 0.00003,  // 약 $0.03/1000자 (추정)
+    perCharacter: 0.00003,
+    per1kChars: 0.03,
   },
-  // 영상 생성 (APIYI Sora 2)
+  // 영상 생성 (VIDEO_MODELS와 일치)
   VIDEO: {
-    perVideo: 0.12,  // Sora 2 landscape 720p 기준 $0.12/건
+    'sora_video2-landscape': 0.12,
+    'sora_video2': 0.12,
+    'sora_video2-15s': 0.12,
+    'sora-2-pro': 0.80,
+    'veo3-fast': 2.00,
+    'veo3': 2.00,
+    'veo3-pro': 10.00,
   },
 } as const;
 
@@ -122,6 +136,13 @@ export function getVideoModelCost(): number {
   const id = (typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_video_model') : null) || 'sora_video2-landscape';
   const model = VIDEO_MODELS[id as VideoModelId];
   return model?.costPerVideo ?? VIDEO_MODELS['sora_video2-landscape'].costPerVideo;
+}
+
+// 선택된 이미지 모델의 비용 (USD) - APIYI tubegen_image_model_apiyi 사용
+export function getImageModelCost(): number {
+  const id = (typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_image_model_apiyi') : null) || 'gemini-2.5-flash-image-preview';
+  const price = (PRICING.IMAGE as Record<string, number>)[id];
+  return price ?? 0.025;
 }
 
 // ElevenLabs 자막(타임스탬프) 지원 모델 목록
