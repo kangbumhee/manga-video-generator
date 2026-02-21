@@ -675,7 +675,7 @@ export const generateImageForScene = async (
 
         if (config.mode === 'apiyi') {
           // APIYI: OpenAI 호환 이미지 생성 - 참조 이미지는 미지원
-          const imageModel = typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_image_model_apiyi') || 'gpt-image-1' : 'gpt-image-1';
+          const imageModel = typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_image_model_apiyi') || 'gemini-2.5-flash-image-preview' : 'gemini-2.5-flash-image-preview';
           const imageQuality = typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_image_quality') || 'low' : 'low';
 
           const isGptImage = imageModel === 'gpt-image-1' || imageModel === 'gpt-image-1.5';

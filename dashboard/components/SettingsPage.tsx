@@ -6,7 +6,6 @@ const STORAGE_KEYS = {
   ELEVENLABS_API_KEY: 'tubegen_el_key',
   ELEVENLABS_VOICE_ID: 'tubegen_el_voice',
   ELEVENLABS_MODEL: 'tubegen_el_model',
-  FAL_API_KEY: 'tubegen_fal_key',
 };
 
 const SettingsPage: React.FC = () => {
@@ -19,19 +18,14 @@ const SettingsPage: React.FC = () => {
   const [elVoiceId, setElVoiceId] = useState('21m00Tcm4TlvDq8ikWAM');
   const [elModel, setElModel] = useState('eleven_multilingual_v2');
 
-  const [falKey, setFalKey] = useState('');
-  const [falKeyVisible, setFalKeyVisible] = useState(false);
-
   const [apiyiGuideOpen, setApiyiGuideOpen] = useState(false);
   const [elGuideOpen, setElGuideOpen] = useState(false);
-  const [falGuideOpen, setFalGuideOpen] = useState(false);
 
   useEffect(() => {
     setApiyiKey(localStorage.getItem(STORAGE_KEYS.APIYI_API_KEY) || '');
     setElKey(localStorage.getItem(STORAGE_KEYS.ELEVENLABS_API_KEY) || '');
     setElVoiceId(localStorage.getItem(STORAGE_KEYS.ELEVENLABS_VOICE_ID) || '21m00Tcm4TlvDq8ikWAM');
     setElModel(localStorage.getItem(STORAGE_KEYS.ELEVENLABS_MODEL) || 'eleven_multilingual_v2');
-    setFalKey(localStorage.getItem(STORAGE_KEYS.FAL_API_KEY) || '');
   }, []);
 
   const saveApiyiKey = (key: string) => {
@@ -55,11 +49,6 @@ const SettingsPage: React.FC = () => {
   const saveElModel = (model: string) => {
     setElModel(model);
     localStorage.setItem(STORAGE_KEYS.ELEVENLABS_MODEL, model);
-  };
-
-  const saveFalKey = (key: string) => {
-    setFalKey(key);
-    localStorage.setItem(STORAGE_KEYS.FAL_API_KEY, key);
   };
 
   const testApiyiConnection = async () => {
@@ -92,7 +81,7 @@ const SettingsPage: React.FC = () => {
     if (!confirm('모든 API 키와 설정을 초기화하시겠습니까?')) return;
     Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
     setApiyiKey(''); setElKey(''); setElVoiceId('21m00Tcm4TlvDq8ikWAM');
-    setElModel('eleven_multilingual_v2'); setFalKey('');
+    setElModel('eleven_multilingual_v2');
     setApiyiTestStatus('idle');
     if (typeof chrome !== 'undefined' && chrome.storage) {
       chrome.storage.local.remove(Object.values(STORAGE_KEYS));
@@ -250,54 +239,6 @@ const SettingsPage: React.FC = () => {
         )}
       </div>
 
-      {/* 카드 3: FAL.ai */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
-        <h2 className="text-lg font-bold text-white mb-1">FAL.ai 영상 변환 (선택사항)</h2>
-        <p className="text-slate-400 text-sm mb-4">이미지를 움직이는 영상으로 변환합니다. Seedance Lite / PixVerse v4 / PixVerse v5.6 모델 지원.</p>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">FAL API Key</label>
-          <div className="relative">
-            <input
-              type={falKeyVisible ? 'text' : 'password'}
-              value={falKey}
-              onChange={(e) => saveFalKey(e.target.value)}
-              placeholder="fal_..."
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-            />
-            <button
-              onClick={() => setFalKeyVisible(!falKeyVisible)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-            >
-              {falKeyVisible ? '🙈' : '👁️'}
-            </button>
-          </div>
-        </div>
-
-        <button
-          onClick={() => setFalGuideOpen(!falGuideOpen)}
-          className="text-indigo-400 hover:text-indigo-300 text-sm font-medium mt-4"
-        >
-          API 키 발급 방법 {falGuideOpen ? '▲' : '▼'}
-        </button>
-        {falGuideOpen && (
-          <div className="mt-3 bg-slate-800 rounded-xl p-4 text-sm text-slate-300 space-y-2">
-            <p className="font-bold text-white">FAL.ai API 키 발급 방법</p>
-            <ol className="list-decimal list-inside space-y-1">
-              <li><a href="https://fal.ai" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline">https://fal.ai</a> 접속</li>
-              <li>&quot;Sign Up&quot; 클릭 → GitHub 또는 Google로 가입</li>
-              <li>로그인 후 우측 상단 프로필 → &quot;Keys&quot; 클릭</li>
-              <li>&quot;Create Key&quot; 클릭</li>
-              <li>키를 복사하여 위 입력란에 붙여넣기</li>
-            </ol>
-            <div className="mt-3 p-3 bg-slate-700 rounded-lg">
-              <p>💡 신규 가입 시 <strong className="text-green-400">$10 무료 크레딧</strong></p>
-              <p>💡 Seedance Lite $0.18/클립 · PixVerse v4 $0.20 · PixVerse v5.6 $0.45 (5초 720p 기준)</p>
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* 현재 설정 상태 */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
         <h2 className="text-lg font-bold text-white mb-4">현재 설정 상태</h2>
@@ -311,19 +252,14 @@ const SettingsPage: React.FC = () => {
           </thead>
           <tbody>
             <tr className="border-b border-slate-800">
-              <td className="py-3 text-slate-300">APIYI (스크립트+이미지+영상)</td>
+              <td className="py-3 text-slate-300">APIYI (스크립트+이미지+영상+Sora 2)</td>
               <td className="py-3">{apiyiKey ? <span className="text-green-400">설정됨</span> : <span className="text-red-400">미설정</span>}</td>
               <td className="py-3 text-slate-500 font-mono text-xs">{maskKey(apiyiKey)}</td>
             </tr>
-            <tr className="border-b border-slate-800">
+            <tr>
               <td className="py-3 text-slate-300">ElevenLabs (음성 TTS)</td>
               <td className="py-3">{elKey ? <span className="text-green-400">설정됨</span> : <span className="text-yellow-400">미설정 (Gemini TTS 사용)</span>}</td>
               <td className="py-3 text-slate-500 font-mono text-xs">{maskKey(elKey)}</td>
-            </tr>
-            <tr>
-              <td className="py-3 text-slate-300">FAL.ai (영상 변환)</td>
-              <td className="py-3">{falKey ? <span className="text-green-400">설정됨</span> : <span className="text-slate-500">미설정 (선택사항)</span>}</td>
-              <td className="py-3 text-slate-500 font-mono text-xs">{maskKey(falKey)}</td>
             </tr>
           </tbody>
         </table>

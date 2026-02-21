@@ -46,25 +46,37 @@ export const GEMINI_STYLE_CATEGORIES = [
 
 export type GeminiStyleId = typeof GEMINI_STYLE_CATEGORIES[number]['styles'][number]['id'] | 'gemini-custom' | 'gemini-none';
 
-// 영상 생성 모델 (FAL.ai)
+// 영상 생성 모델 (APIYI Sora 2)
 export const VIDEO_MODELS = {
-  'seedance-lite': {
-    id: 'fal-ai/bytedance/seedance/v1/lite/image-to-video',
-    name: 'Seedance 1.0 Lite',
-    costPer5s: 0.18,
-    description: '만화/카툰 최적, 최저가',
+  'sora_video2-landscape': {
+    name: 'Sora 2 (가로)',
+    costPerVideo: 0.12,
+    description: '720p, 가성비 최고',
   },
-  'pixverse-v4': {
-    id: 'fal-ai/pixverse/v4/image-to-video',
-    name: 'PixVerse v4',
-    costPer5s: 0.20,
-    description: '범용 무난',
+  'sora_video2': {
+    name: 'Sora 2 (세로)',
+    costPerVideo: 0.12,
+    description: '720p 세로',
   },
-  'pixverse-v5.6': {
-    id: 'fal-ai/pixverse/v5.6/image-to-video',
-    name: 'PixVerse v5.6',
-    costPer5s: 0.45,
-    description: '최신 고품질',
+  'sora_video2-15s': {
+    name: 'Sora 2 15초',
+    costPerVideo: 0.12,
+    description: '720p, 15초',
+  },
+  'sora-2-pro': {
+    name: 'Sora 2 Pro',
+    costPerVideo: 0.80,
+    description: '1080p 고화질',
+  },
+  'veo3-fast': {
+    name: 'Veo 3 Fast',
+    costPerVideo: 2.00,
+    description: '고품질 + 오디오',
+  },
+  'veo3': {
+    name: 'Veo 3',
+    costPerVideo: 2.00,
+    description: '최고 품질',
   },
 } as const;
 
@@ -83,9 +95,9 @@ export const PRICING = {
   TTS: {
     perCharacter: 0.00003,  // 약 $0.03/1000자 (추정)
   },
-  // 영상 생성 (FAL.ai - 기본 Seedance Lite)
+  // 영상 생성 (APIYI Sora 2)
   VIDEO: {
-    perVideo: 0.18,  // Seedance Lite 720p 5초 기준 $0.18/클립
+    perVideo: 0.12,  // Sora 2 landscape 720p 기준 $0.12/건
   },
 } as const;
 
@@ -100,11 +112,11 @@ export function formatKRW(usd: number): string {
   return krw.toLocaleString('ko-KR') + '원';
 }
 
-// 선택된 영상 모델의 5초당 비용 (USD)
+// 선택된 영상 모델의 비용 (USD)
 export function getVideoModelCost(): number {
-  const id = (typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_video_model') : null) || 'seedance-lite';
+  const id = (typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_video_model') : null) || 'sora_video2-landscape';
   const model = VIDEO_MODELS[id as VideoModelId];
-  return model?.costPer5s ?? VIDEO_MODELS['seedance-lite'].costPer5s;
+  return model?.costPerVideo ?? VIDEO_MODELS['sora_video2-landscape'].costPerVideo;
 }
 
 // ElevenLabs 자막(타임스탬프) 지원 모델 목록
@@ -151,8 +163,7 @@ export const CONFIG = {
     ELEVENLABS_API_KEY: 'tubegen_el_key',
     ELEVENLABS_VOICE_ID: 'tubegen_el_voice',
     ELEVENLABS_MODEL: 'tubegen_el_model',
-    FAL_API_KEY: 'tubegen_fal_key',  // FAL.ai 영상 변환용 (Seedance/PixVerse)
-    VIDEO_MODEL: 'tubegen_video_model',  // seedance-lite | pixverse-v4 | pixverse-v5.6
+    VIDEO_MODEL: 'tubegen_video_model',  // sora_video2-landscape | sora-2-pro | veo3 등
     IMAGE_MODEL: 'tubegen_image_model',
     // Gemini 전용 화풍 설정
     GEMINI_STYLE: 'tubegen_gemini_style',

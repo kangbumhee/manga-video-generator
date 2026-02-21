@@ -380,7 +380,7 @@ const App: React.FC = () => {
       const runAnimations = async () => {
         const falApiKey = getFalApiKey();
         if (!falApiKey) {
-          console.log('[Animation] FAL API 키 없음, 애니메이션 변환 건너뜀');
+          console.log('[Animation] APIYI API 키 없음, 애니메이션 변환 건너뜀');
           return;
         }
 
@@ -512,7 +512,7 @@ const App: React.FC = () => {
   const handleGenerateAnimation = useCallback(async (idx: number) => {
       const falKey = getFalApiKey();
     if (!falKey) {
-      alert('FAL.ai API 키를 설정 페이지에서 등록해주세요.\n(설정 탭 → FAL.ai)');
+      alert('APIYI API 키를 설정 페이지에서 등록해주세요.\n(영상 변환에 APIYI 키가 필요합니다)');
       return;
     }
     if (animatingIndices.has(idx)) return; // 이 씬은 이미 변환 중

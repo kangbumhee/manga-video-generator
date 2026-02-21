@@ -19,14 +19,14 @@ type QualityPreset = {
 };
 
 const QUALITY_PRESETS: QualityPreset[] = [
-  { id: 'ultra-budget', name: '극한 절약', emoji: '💰', scriptModel: 'gemini-2.5-flash-lite', imageModel: 'gpt-image-1', imageQuality: 'low', videoMode: 'none', videoModel: '', videoSceneCount: 0, estimatedCost: '~113원', description: '정적 이미지만, 최저가' },
-  { id: 'budget-static', name: '가성비 정적', emoji: '⚡', scriptModel: 'gemini-2.5-flash', imageModel: 'gpt-image-1', imageQuality: 'low', videoMode: 'none', videoModel: '', videoSceneCount: 0, estimatedCost: '~255원', description: '가성비 이미지, 영상변환 없음' },
-  { id: 'static-hd', name: '고화질 정적', emoji: '🎨', scriptModel: 'gemini-2.5-flash', imageModel: 'seedream-4-5-251128', imageQuality: 'standard', videoMode: 'none', videoModel: '', videoSceneCount: 0, estimatedCost: '~776원', description: '4K 이미지, 텍스트 렌더링 우수' },
-  { id: 'partial-video', name: '부분 영상', emoji: '🎬', scriptModel: 'gemini-2.5-flash', imageModel: 'gpt-image-1', imageQuality: 'low', videoMode: 'partial', videoModel: 'seedance-lite', videoSceneCount: 5, estimatedCost: '~1,560원', description: '핵심 5씬만 움직이는 영상 (Seedance)' },
-  { id: 'partial-video-hq', name: '부분 영상 고급', emoji: '✨', scriptModel: 'gemini-2.5-flash', imageModel: 'gpt-image-1.5', imageQuality: 'medium', videoMode: 'partial', videoModel: 'pixverse-v5.6', videoSceneCount: 5, estimatedCost: '~3,900원', description: '고품질 이미지 + PixVerse v5.6 5씬' },
-  { id: 'full-video', name: '전체 영상', emoji: '🎥', scriptModel: 'gemini-2.5-flash', imageModel: 'gpt-image-1', imageQuality: 'low', videoMode: 'full', videoModel: 'seedance-lite', videoSceneCount: 15, estimatedCost: '~4,170원', description: '전체 씬 움직이는 영상 (Seedance)' },
-  { id: 'full-video-hq', name: '전체 영상 고급', emoji: '🏆', scriptModel: 'gemini-3-flash-preview', imageModel: 'seedream-4-5-251128', imageQuality: 'standard', videoMode: 'full', videoModel: 'pixverse-v5.6', videoSceneCount: 15, estimatedCost: '~10,600원', description: '4K 이미지 + PixVerse v5.6 전체' },
-  { id: 'premium', name: '풀 프리미엄', emoji: '👑', scriptModel: 'gemini-3-pro-preview', imageModel: 'gpt-image-1', imageQuality: 'high', videoMode: 'full', videoModel: 'pixverse-v5.6', videoSceneCount: 15, estimatedCost: '~12,000원', description: '최고 퀄리티, 1080p 시네마틱' },
+  { id: 'ultra-budget', name: '극한 절약', emoji: '💰', scriptModel: 'gemini-2.5-flash-lite', imageModel: 'gpt-image-1', imageQuality: 'low', videoMode: 'none', videoModel: '', videoSceneCount: 0, estimatedCost: '~160원', description: '정적 이미지만, 최저가' },
+  { id: 'budget-static', name: '가성비 정적', emoji: '⚡', scriptModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image-preview', imageQuality: 'standard', videoMode: 'none', videoModel: '', videoSceneCount: 0, estimatedCost: '~380원', description: 'Nano Banana 이미지, 영상변환 없음' },
+  { id: 'static-hd', name: '고화질 정적', emoji: '🎨', scriptModel: 'gemini-2.5-flash', imageModel: 'seedream-4-5-251128', imageQuality: 'standard', videoMode: 'none', videoModel: '', videoSceneCount: 0, estimatedCost: '~540원', description: 'SeeDream 4.5 이미지, 텍스트 렌더링 우수' },
+  { id: 'partial-video', name: '부분 영상', emoji: '🎬', scriptModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image-preview', imageQuality: 'standard', videoMode: 'partial', videoModel: 'sora_video2-landscape', videoSceneCount: 5, estimatedCost: '~1,430원', description: 'Nano Banana + Sora 2 5씬' },
+  { id: 'partial-video-hq', name: '부분 영상 고급', emoji: '✨', scriptModel: 'gemini-2.5-flash', imageModel: 'seedream-4-5-251128', imageQuality: 'standard', videoMode: 'partial', videoModel: 'sora-2-pro', videoSceneCount: 5, estimatedCost: '~6,360원', description: 'SeeDream 4.5 + Sora 2 Pro 5씬' },
+  { id: 'full-video', name: '전체 영상', emoji: '🎥', scriptModel: 'gemini-2.5-flash', imageModel: 'gemini-2.5-flash-image-preview', imageQuality: 'standard', videoMode: 'full', videoModel: 'sora_video2-landscape', videoSceneCount: 15, estimatedCost: '~3,170원', description: 'Nano Banana + Sora 2 전체' },
+  { id: 'full-video-hq', name: '전체 영상 고급', emoji: '🏆', scriptModel: 'gemini-3-flash-preview', imageModel: 'seedream-4-5-251128', imageQuality: 'standard', videoMode: 'full', videoModel: 'sora-2-pro', videoSceneCount: 15, estimatedCost: '~17,950원', description: 'SeeDream 4.5 + Sora 2 Pro 전체' },
+  { id: 'premium', name: '풀 프리미엄', emoji: '👑', scriptModel: 'gemini-3-pro-preview', imageModel: 'gemini-2.5-flash-image-preview', imageQuality: 'high', videoMode: 'full', videoModel: 'veo3-fast', videoSceneCount: 15, estimatedCost: '~44,600원', description: 'Nano Banana Pro + Veo 3 Fast 전체' },
 ];
 
 // Gemini 스타일 맵
