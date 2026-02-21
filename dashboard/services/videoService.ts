@@ -1,5 +1,6 @@
 
 import { GeneratedAsset, SubtitleData, SubtitleConfig, DEFAULT_SUBTITLE_CONFIG } from '../types';
+import { generateBgm } from './bgmService';
 
 /**
  * 고정밀 오디오 디코딩: ElevenLabs(MP3)와 Gemini(PCM) 통합 처리
@@ -209,6 +210,9 @@ function renderSubtitle(
 export interface VideoExportOptions {
   enableSubtitles?: boolean;  // 자막 활성화 여부 (기본: true)
   subtitleConfig?: Partial<SubtitleConfig>;
+  enableBgm?: boolean;       // BGM 활성화 (기본: true)
+  bgmVolume?: number;        // BGM 볼륨 0~1 (기본: 0.15)
+  topic?: string;            // BGM 분위기 결정용 주제
 }
 
 // 실제 렌더링된 자막 타이밍 기록용 인터페이스
@@ -233,6 +237,8 @@ export const generateVideo = async (
 ): Promise<VideoGenerationResult | null> => {
   // 옵션 기본값
   const enableSubtitles = options?.enableSubtitles ?? true;
+  const enableBgm = options?.enableBgm ?? true;
+  const bgmVolume = options?.bgmVolume ?? 0.15;
   const config: SubtitleConfig = { ...DEFAULT_SUBTITLE_CONFIG, ...options?.subtitleConfig };
 
   // 이미지가 있는 모든 씬 포함 (오디오 없으면 기본 3초)
@@ -257,6 +263,7 @@ export const generateVideo = async (
   let timelinePointer = 0;
 
   const DEFAULT_DURATION = 3; // 오디오 없을 때 기본 3초
+  const SCENE_GAP = 0.6; // 씬 전환 간격 (초) - 자연스러운 호흡
 
   for (let i = 0; i < validAssets.length; i++) {
     const asset = validAssets[i];
@@ -349,6 +356,11 @@ export const generateVideo = async (
       console.log(`[Video] 씬 ${i + 1}: ${subtitleChunks.length}개 자막 청크 생성`);
     }
 
+    // 첫 씬이 아니면 앞에 갭 삽입
+    if (i > 0) {
+      timelinePointer += SCENE_GAP;
+    }
+
     const startTime = timelinePointer;
     const endTime = startTime + duration;
 
@@ -366,6 +378,21 @@ export const generateVideo = async (
   }
 
   const totalDuration = timelinePointer;
+
+  // BGM 생성 및 디코딩
+  let bgmBuffer: AudioBuffer | null = null;
+  if (enableBgm && options?.topic) {
+    try {
+      onProgress("🎵 배경음악 생성 중...");
+      const bgmResult = await generateBgm(options.topic, totalDuration, onProgress);
+      if (bgmResult.audioBase64) {
+        bgmBuffer = await decodeAudio(bgmResult.audioBase64, audioCtx);
+        console.log(`[Video] BGM 디코딩 완료: ${bgmBuffer.duration.toFixed(1)}초`);
+      }
+    } catch (e) {
+      console.warn('[Video] BGM 생성/디코딩 실패, 나레이션만 사용:', e);
+    }
+  }
 
   // 2. 캔버스 및 미디어 레코더 설정
   const canvas = document.createElement('canvas');
@@ -429,17 +456,33 @@ export const generateVideo = async (
     const initialDelay = 0.5; // 레코더 안정화를 위한 여유 시간 확보
     const masterStartTime = audioCtx.currentTime + initialDelay;
 
+    // 나레이션 오디오 스케줄링
     preparedScenes.forEach(scene => {
-      // 오디오가 있는 씬만 스케줄링
       if (scene.audioBuffer) {
         const source = audioCtx.createBufferSource();
         source.buffer = scene.audioBuffer;
         source.connect(destination);
-        // 렌더링 중 스피커 출력 음소거 (MP4에는 정상 포함)
         source.start(masterStartTime + scene.startTime);
         source.stop(masterStartTime + scene.endTime);
       }
     });
+
+    // BGM 오디오 스케줄링 (낮은 볼륨으로 전체 재생)
+    if (bgmBuffer) {
+      const bgmSource = audioCtx.createBufferSource();
+      bgmSource.buffer = bgmBuffer;
+      bgmSource.loop = true;
+
+      const bgmGain = audioCtx.createGain();
+      bgmGain.gain.value = bgmVolume;
+
+      bgmSource.connect(bgmGain);
+      bgmGain.connect(destination);
+
+      bgmSource.start(masterStartTime);
+      bgmSource.stop(masterStartTime + totalDuration + 1);
+      console.log(`[Video] BGM 재생 스케줄링 완료 (볼륨: ${(bgmVolume * 100).toFixed(0)}%)`);
+    }
 
     // 애니메이션 영상 재생 스케줄링
     preparedScenes.forEach((scene, idx) => {
@@ -484,15 +527,24 @@ export const generateVideo = async (
       );
       let currentScene = currentSceneIndex >= 0 ? preparedScenes[currentSceneIndex] : null;
 
-      // 씬을 못 찾으면 가장 가까운 씬 선택 (음수 시간 또는 경계 근처)
+      // 씬을 못 찾은 경우 처리
       if (!currentScene) {
         if (elapsed < 0 || elapsed < preparedScenes[0].startTime) {
+          // 시작 전: 첫 씬 표시
           currentScene = preparedScenes[0];
           currentSceneIndex = 0;
         } else {
-          const nextScene = preparedScenes.find(s => elapsed < s.startTime);
-          currentScene = nextScene || preparedScenes[preparedScenes.length - 1];
-          currentSceneIndex = nextScene ? preparedScenes.indexOf(nextScene) : preparedScenes.length - 1;
+          // 씬 사이 갭 구간: 검은 화면
+          ctx.fillStyle = '#000';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          const percent = Math.min(100, Math.round((elapsed / totalDuration) * 100));
+          if (percent % 5 === 0) {
+            onProgress(`동기화 렌더링 가동 중: ${percent}%`);
+          }
+
+          requestAnimationFrame(renderLoop);
+          return;
         }
       }
 

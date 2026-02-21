@@ -581,11 +581,19 @@ const App: React.FC = () => {
       const suffix = enableSubtitles ? 'sub' : 'nosub';
       const timestamp = Date.now();
 
+      const bgmEnabled = localStorage.getItem('tubegen_bgm_enabled') !== 'false';
+      const bgmVolumeVal = Number(localStorage.getItem('tubegen_bgm_volume') || '15') / 100;
+
       const result = await generateVideo(
         assetsRef.current,
         (msg) => setProgressMessage(`[Render] ${msg}`),
         isAbortedRef,
-        { enableSubtitles }
+        {
+          enableSubtitles,
+          enableBgm: bgmEnabled,
+          bgmVolume: bgmVolumeVal,
+          topic: currentTopic,
+        }
       );
 
       if (result) {

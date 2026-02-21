@@ -80,6 +80,17 @@ const InputSection: React.FC<InputSectionProps> = ({ onGenerate, step }) => {
   // 퀄리티 프리셋 접기/펼치기 (기본: 접힌 상태)
   const [isPresetOpen, setIsPresetOpen] = useState(false);
 
+  // BGM 설정 상태
+  const [bgmEnabled, setBgmEnabled] = useState<boolean>(() => {
+    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_bgm_enabled') : null;
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [bgmVolume, setBgmVolume] = useState<number>(() => {
+    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_bgm_volume') : null;
+    return saved !== null ? Number(saved) : 15;
+  });
+  const [showBgmSettings, setShowBgmSettings] = useState(false);
+
   // ElevenLabs 설정 상태
   const [showElevenLabsSettings, setShowElevenLabsSettings] = useState(false);
   // API 키: chrome.storage 동기화 후 localStorage 또는 환경변수에서 읽음
@@ -111,6 +122,17 @@ const InputSection: React.FC<InputSectionProps> = ({ onGenerate, step }) => {
       localStorage.setItem('tubegen_video_model', preset.videoModel);
       localStorage.setItem('tubegen_video_scene_count', String(preset.videoSceneCount));
     }
+  }, []);
+
+  // BGM 설정 변경 핸들러
+  const handleBgmToggle = useCallback((enabled: boolean) => {
+    setBgmEnabled(enabled);
+    localStorage.setItem('tubegen_bgm_enabled', String(enabled));
+  }, []);
+
+  const handleBgmVolumeChange = useCallback((volume: number) => {
+    setBgmVolume(volume);
+    localStorage.setItem('tubegen_bgm_volume', String(volume));
   }, []);
 
   // 프리셋 localStorage 복원
@@ -675,6 +697,99 @@ const InputSection: React.FC<InputSectionProps> = ({ onGenerate, step }) => {
                 <p className="text-center text-slate-500 text-xs py-4">
                   저장된 프로젝트가 없습니다.<br />
                   현재 설정을 프로젝트로 저장해보세요.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* BGM 설정 */}
+        <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-2xl backdrop-blur-sm">
+          <button
+            type="button"
+            onClick={() => setShowBgmSettings(!showBgmSettings)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
+                <span className="text-sm">🎵</span>
+              </div>
+              <div>
+                <h3 className="text-white font-bold text-sm">배경음악 (BGM)</h3>
+                <p className="text-slate-500 text-xs">
+                  {bgmEnabled ? `활성화 · 볼륨 ${bgmVolume}% · ~363원/생성` : '비활성화'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleBgmToggle(!bgmEnabled);
+                }}
+                className={`relative w-10 h-5 rounded-full transition-colors ${
+                  bgmEnabled ? 'bg-emerald-500' : 'bg-slate-600'
+                }`}
+              >
+                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                  bgmEnabled ? 'translate-x-5' : 'translate-x-0.5'
+                }`} />
+              </button>
+              <svg className={`w-5 h-5 text-slate-500 transition-transform ${showBgmSettings ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </button>
+
+          {showBgmSettings && (
+            <div className="mt-4 pt-4 border-t border-slate-800 space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-400">BGM 볼륨</span>
+                  <span className="text-xs font-bold text-emerald-400">{bgmVolume}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="50"
+                  value={bgmVolume}
+                  onChange={(e) => handleBgmVolumeChange(Number(e.target.value))}
+                  disabled={!bgmEnabled}
+                  className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500 disabled:opacity-40"
+                />
+                <div className="flex justify-between text-[9px] text-slate-500 mt-1">
+                  <span>무음</span>
+                  <span>10%: 작게</span>
+                  <span>25%: 보통</span>
+                  <span>50%: 크게</span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-700">
+                <div className="text-[10px] text-slate-400 space-y-1">
+                  <div className="flex justify-between">
+                    <span>모델</span>
+                    <span className="text-slate-300 font-medium">ElevenLabs Music v1</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>생성 길이</span>
+                    <span className="text-slate-300 font-medium">30초 (loop 반복)</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>비용</span>
+                    <span className="text-emerald-400 font-medium">~$0.25 (≈363원)</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>특징</span>
+                    <span className="text-slate-300 font-medium">주제 맞춤 인스트루멘탈</span>
+                  </div>
+                </div>
+              </div>
+
+              {!bgmEnabled && (
+                <p className="text-center text-slate-600 text-[10px] py-1">
+                  BGM이 비활성화 되어있습니다. 토글을 켜면 영상에 배경음악이 추가됩니다.
                 </p>
               )}
             </div>
