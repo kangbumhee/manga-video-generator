@@ -261,7 +261,9 @@ export interface ElevenLabsVoice {
  * ElevenLabs에서 사용 가능한 음성 목록 가져오기
  */
 export const fetchElevenLabsVoices = async (apiKey?: string): Promise<ElevenLabsVoice[]> => {
-  const finalKey = apiKey || localStorage.getItem(CONFIG.STORAGE_KEYS.ELEVENLABS_API_KEY);
+  // 환경변수 우선, 그 다음 localStorage
+  const envKey = process.env.ELEVENLABS_API_KEY;
+  const finalKey = apiKey || envKey || localStorage.getItem(CONFIG.STORAGE_KEYS.ELEVENLABS_API_KEY);
 
   if (!finalKey || finalKey.length < 10) {
     console.warn("ElevenLabs API Key가 설정되지 않았습니다.");
