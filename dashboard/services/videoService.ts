@@ -531,16 +531,25 @@ export const generateVideo = async (
       }
 
       // 현재 오디오 타임스탬프에 '절대 동기화'된 장면 찾기
-      // 경계: elapsed < endTime (배타적) 사용 → 정확한 경계에서 다음 씬으로 전환
       let currentSceneIndex = preparedScenes.findIndex(s =>
         elapsed >= s.startTime && elapsed < s.endTime
       );
       let currentScene = currentSceneIndex >= 0 ? preparedScenes[currentSceneIndex] : null;
 
-      // 씬을 못 찾은 경우 처리
+      // 갭 구간이면 직전 씬의 마지막 프레임 유지 (검은 화면 대신)
+      if (currentSceneIndex < 0 && elapsed >= 0) {
+        for (let si = preparedScenes.length - 1; si >= 0; si--) {
+          if (elapsed >= preparedScenes[si].endTime) {
+            currentSceneIndex = si;
+            currentScene = preparedScenes[si];
+            break;
+          }
+        }
+      }
+
+      // 씬을 못 찾은 경우 (시작 전만 해당)
       if (!currentScene) {
         if (elapsed < 0 || elapsed < preparedScenes[0].startTime) {
-          // 시작 전: 첫 씬 표시
           currentScene = preparedScenes[0];
           currentSceneIndex = 0;
         } else {
@@ -555,20 +564,12 @@ export const generateVideo = async (
             subtitleIndex++;
             lastRecordedChunkText = null;
           }
-          // 씬 사이 갭 구간: 검은 화면
-          ctx.fillStyle = '#000';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-          const percent = Math.min(100, Math.round((elapsed / totalDuration) * 100));
-          if (percent !== lastReportedPercent && percent % 5 === 0) {
-            lastReportedPercent = percent;
-            onProgress(`동기화 렌더링 가동 중: ${percent}%`);
-          }
-
-          requestAnimationFrame(renderLoop);
-          return;
+          currentScene = preparedScenes[preparedScenes.length - 1];
+          currentSceneIndex = preparedScenes.length - 1;
         }
       }
+
+      const isInGap = currentScene && elapsed > currentScene.endTime;
 
       if (ctx && currentScene) {
         // 배경 클리어
@@ -619,6 +620,14 @@ export const generateVideo = async (
           console.log(`[Video Render] 씬 ${(currentSceneIndex ?? preparedScenes.indexOf(currentScene)) + 1}: localTime=${sceneElapsed.toFixed(3)}, 자막 청크 수=${chunks.length}, 첫 청크 시작=${chunks[0]?.startTime?.toFixed(3)}`);
         }
         renderSubtitle(ctx, canvas, chunks, sceneElapsed, config);
+
+        // 갭 구간: 직전 씬 이미지 위에 페이드 아웃 오버레이
+        if (isInGap) {
+          const gapElapsed = elapsed - currentScene.endTime;
+          const fadeAlpha = Math.min(0.6, gapElapsed / SCENE_GAP);
+          ctx.fillStyle = `rgba(0, 0, 0, ${fadeAlpha})`;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
 
         // 자막 타이밍 기록 (실제 표시되는 것과 동일하게)
         const currentChunk = getCurrentChunk(currentScene.subtitleChunks, sceneElapsed);
