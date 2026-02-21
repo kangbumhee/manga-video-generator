@@ -253,7 +253,7 @@ const SettingsPage: React.FC = () => {
       {/* 카드 3: FAL.ai */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
         <h2 className="text-lg font-bold text-white mb-1">FAL.ai 영상 변환 (선택사항)</h2>
-        <p className="text-slate-400 text-sm mb-4">이미지를 움직이는 영상으로 변환합니다. APIYI의 Sora 2를 대신 사용할 수도 있습니다.</p>
+        <p className="text-slate-400 text-sm mb-4">이미지를 움직이는 영상으로 변환합니다. Seedance Lite / PixVerse v4 / PixVerse v5.6 모델 지원.</p>
 
         <div>
           <label className="block text-sm font-medium text-slate-300 mb-2">FAL API Key</label>
@@ -292,7 +292,7 @@ const SettingsPage: React.FC = () => {
             </ol>
             <div className="mt-3 p-3 bg-slate-700 rounded-lg">
               <p>💡 신규 가입 시 <strong className="text-green-400">$10 무료 크레딧</strong></p>
-              <p>💡 영상 1개당 약 $0.15 (5초 기준)</p>
+              <p>💡 Seedance Lite $0.18/클립 · PixVerse v4 $0.20 · PixVerse v5.6 $0.45 (5초 720p 기준)</p>
             </div>
           </div>
         )}

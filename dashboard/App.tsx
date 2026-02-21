@@ -12,7 +12,7 @@ import { downloadSrtFromRecorded } from './services/srtService';
 import { generateVideoFromImage, getFalApiKey } from './services/videoGenerationService';
 import { saveProject, getSavedProjects, deleteProject, migrateFromLocalStorage } from './services/projectService';
 import { SavedProject } from './types';
-import { CONFIG, PRICING, formatKRW } from './config';
+import { CONFIG, PRICING, formatKRW, getVideoModelCost } from './config';
 import ProjectGallery from './components/ProjectGallery';
 import SettingsPage from './components/SettingsPage';
 import * as FileSaver from 'file-saver';
@@ -405,7 +405,7 @@ const App: React.FC = () => {
             const videoUrl = await generateVideoFromImage(
               assetsRef.current[i].imageData!,
               motionPrompt,
-              falApiKey
+              (msg) => setProgressMessage(msg)
             );
 
             if (videoUrl && !isAbortedRef.current) {
@@ -510,9 +510,9 @@ const App: React.FC = () => {
 
   // 애니메이션 생성 핸들러 (useCallback으로 메모이제이션)
   const handleGenerateAnimation = useCallback(async (idx: number) => {
-    const falKey = getFalApiKey();
+      const falKey = getFalApiKey();
     if (!falKey) {
-      alert('APIYI API 키를 설정 페이지에서 등록해주세요.\n(설정 탭 → APIYI 통합 API)');
+      alert('FAL.ai API 키를 설정 페이지에서 등록해주세요.\n(설정 탭 → FAL.ai)');
       return;
     }
     if (animatingIndices.has(idx)) return; // 이 씬은 이미 변환 중
@@ -536,7 +536,7 @@ const App: React.FC = () => {
       const videoUrl = await generateVideoFromImage(
         assetsRef.current[idx].imageData!,
         motionPrompt,
-        falKey
+        (msg) => setProgressMessage(msg)
       );
 
       if (videoUrl) {
@@ -545,8 +545,8 @@ const App: React.FC = () => {
           videoDuration: CONFIG.ANIMATION.VIDEO_DURATION
         });
         // 영상 비용 추가
-        addCost('video', PRICING.VIDEO.perVideo, 1);
-        setProgressMessage(`씬 ${idx + 1} 영상 변환 완료! (+${formatKRW(PRICING.VIDEO.perVideo)})`);
+        addCost('video', getVideoModelCost(), 1);
+        setProgressMessage(`씬 ${idx + 1} 영상 변환 완료! (+${formatKRW(getVideoModelCost())})`);
       } else {
         setProgressMessage(`씬 ${idx + 1} 영상 변환 실패`);
       }

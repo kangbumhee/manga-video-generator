@@ -1,191 +1,230 @@
-import { CONFIG } from '../config';
+// FAL.ai Image-to-Video Service (멀티모델)
+// Seedance Lite / PixVerse v4 / PixVerse v5.6 선택 가능
 
-const SORA_MODEL = 'sora-2';
-const APIYI_BASE = 'https://api.apiyi.com/v1';
+import { CONFIG, VIDEO_MODELS, VideoModelId } from '../config';
+
+const FAL_API_BASE = 'https://queue.fal.run';
 
 export function getFalApiKey(): string | null {
-  return localStorage.getItem('tubegen_apiyi_key') || localStorage.getItem(CONFIG.STORAGE_KEYS.FAL_API_KEY) || null;
+  const key = localStorage.getItem(CONFIG.STORAGE_KEYS.FAL_API_KEY) || '';
+  if (!key) {
+    console.warn('[Video Gen] FAL.ai API 키가 설정되지 않았습니다. 설정 탭에서 입력해주세요.');
+    return null;
+  }
+  return key;
 }
 
 export function setFalApiKey(key: string): void {
-  localStorage.setItem('tubegen_apiyi_key', key);
+  localStorage.setItem(CONFIG.STORAGE_KEYS.FAL_API_KEY, key);
 }
 
-export function getVideoApiKey(): string | null {
-  return localStorage.getItem('tubegen_apiyi_key') || null;
+/** 선택된 영상 모델 ID (FAL 엔드포인트) */
+function getVideoModelId(): string {
+  const id = (typeof localStorage !== 'undefined' ? localStorage.getItem(CONFIG.STORAGE_KEYS.VIDEO_MODEL) : null) || 'seedance-lite';
+  const model = VIDEO_MODELS[id as VideoModelId];
+  return model?.id ?? VIDEO_MODELS['seedance-lite'].id;
 }
 
-// base64 이미지를 File 객체로 변환
-function base64ToFile(base64: string, filename: string = 'image.png'): File {
-  const raw = base64.includes(',') ? base64.split(',')[1] : base64;
-  const byteString = atob(raw);
-  const ab = new ArrayBuffer(byteString.length);
-  const ia = new Uint8Array(ab);
-  for (let i = 0; i < byteString.length; i++) {
-    ia[i] = byteString.charCodeAt(i);
+interface VideoRequest {
+  image_url: string;
+  prompt?: string;
+  duration?: number;
+  resolution?: string;
+  negative_prompt?: string;
+}
+
+// base64 이미지를 임시 URL로 변환 (FAL.ai file upload)
+async function uploadImageToFal(base64Data: string): Promise<string> {
+  const apiKey = getFalApiKey();
+  if (!apiKey) throw new Error('[Video Gen] FAL.ai API 키가 없습니다');
+
+  const base64Clean = base64Data.replace(/^data:image\/\w+;base64,/, '');
+  const binaryString = atob(base64Clean);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
   }
-  return new File([ab], filename, { type: 'image/png' });
+  const blob = new Blob([bytes], { type: 'image/png' });
+
+  const response = await fetch('https://fal.run/fal-ai/file-upload', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Key ${apiKey}`,
+      'Content-Type': 'image/png',
+    },
+    body: blob,
+  });
+
+  if (!response.ok) {
+    console.warn('[Video Gen] 파일 업로드 실패, data URL 사용');
+    return `data:image/png;base64,${base64Clean}`;
+  }
+
+  const result = await response.json();
+  return result.url || result.file_url;
 }
 
-// Sora 2 image-to-video 생성 (APIYI 경유)
+// 영상 생성 요청 (큐 방식)
+async function submitVideoGeneration(modelId: string, params: VideoRequest): Promise<string> {
+  const apiKey = getFalApiKey();
+  if (!apiKey) throw new Error('[Video Gen] FAL.ai API 키가 없습니다');
+
+  const body: Record<string, unknown> = {
+    image_url: params.image_url,
+    prompt: params.prompt || 'gentle subtle cartoon animation, slight character movement',
+    duration: params.duration ?? 5,
+    resolution: params.resolution || '720p',
+  };
+  if (params.negative_prompt) body.negative_prompt = params.negative_prompt;
+
+  const response = await fetch(`${FAL_API_BASE}/${modelId}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Key ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`[Video Gen] 요청 실패: ${response.status} - ${error}`);
+  }
+
+  const result = await response.json();
+
+  if (result.video?.url) {
+    return result.video.url;
+  }
+
+  const requestId = result.request_id;
+  if (!requestId) {
+    throw new Error('[Video Gen] request_id가 없습니다');
+  }
+
+  console.log(`[Video Gen] 큐 등록됨: ${requestId}`);
+  return await pollForResult(modelId, requestId);
+}
+
+// 결과 폴링 (최대 5분)
+async function pollForResult(modelId: string, requestId: string): Promise<string> {
+  const apiKey = getFalApiKey();
+  if (!apiKey) throw new Error('[Video Gen] FAL.ai API 키가 없습니다');
+
+  const maxAttempts = 60;
+
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
+    const statusResponse = await fetch(
+      `${FAL_API_BASE}/${modelId}/requests/${requestId}/status`,
+      { headers: { 'Authorization': `Key ${apiKey}` } }
+    );
+
+    if (!statusResponse.ok) continue;
+
+    const status = await statusResponse.json();
+    console.log(`[Video Gen] 상태: ${status.status} (${i + 1}/${maxAttempts})`);
+
+    if (status.status === 'COMPLETED') {
+      const resultResponse = await fetch(
+        `${FAL_API_BASE}/${modelId}/requests/${requestId}`,
+        { headers: { 'Authorization': `Key ${apiKey}` } }
+      );
+      const result = await resultResponse.json();
+      if (result.video?.url) return result.video.url;
+      throw new Error('[Video Gen] 완료되었으나 video URL 없음');
+    }
+
+    if (status.status === 'FAILED') {
+      throw new Error(`[Video Gen] 생성 실패: ${status.error || '알 수 없는 오류'}`);
+    }
+  }
+
+  throw new Error('[Video Gen] 타임아웃: 5분 초과');
+}
+
+// 영상 URL을 base64 data URL로 변환
+async function videoUrlToBase64(url: string): Promise<string> {
+  const response = await fetch(url);
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// === 메인 내보내기 함수 ===
+
 export async function generateVideoFromImage(
   imageBase64: string,
-  motionPrompt: string,
-  apiKey?: string
+  motionPrompt?: string,
+  onProgress?: (msg: string) => void
 ): Promise<string | null> {
-  const key = apiKey || getVideoApiKey();
-  if (!key) {
-    console.error('[Video Gen] API 키 없음');
-    return null;
-  }
+  const apiKey = getFalApiKey();
+  if (!apiKey) return null;
+
+  const modelId = getVideoModelId();
+  console.log(`[Video Gen] 모델: ${modelId}`);
 
   try {
-    console.log(`[Video Gen] Sora 2 영상 생성 시작: "${motionPrompt.slice(0, 50)}..."`);
+    onProgress?.('[Video Gen] 이미지 업로드 중...');
+    const imageUrl = await uploadImageToFal(imageBase64);
+    console.log('[Video Gen] 이미지 업로드 완료');
 
-    // 1단계: 이미지를 File로 업로드
-    const imageFile = base64ToFile(imageBase64);
-    const formData = new FormData();
-    formData.append('file', imageFile);
-    formData.append('purpose', 'vision');
-
-    const uploadRes = await fetch(`${APIYI_BASE}/files`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${key}` },
-      body: formData,
+    onProgress?.('[Video Gen] 영상 생성 요청 중... (1~3분 소요)');
+    const videoUrl = await submitVideoGeneration(modelId, {
+      image_url: imageUrl,
+      prompt: motionPrompt || 'gentle subtle cartoon animation, slight character movement',
+      duration: 5,
+      resolution: '720p',
     });
+    console.log('[Video Gen] 영상 생성 완료:', videoUrl);
 
-    if (!uploadRes.ok) {
-      const errText = await uploadRes.text();
-      console.warn(`[Video Gen] 파일 업로드 실패 (${uploadRes.status}), data URL 방식으로 전환`);
+    onProgress?.('[Video Gen] 영상 다운로드 중...');
+    const videoDataUrl = await videoUrlToBase64(videoUrl);
 
-      // 업로드 실패 시 data URL 방식으로 시도
-      return await generateVideoWithDataUrl(imageBase64, motionPrompt, key);
-    }
-
-    const uploadData = await uploadRes.json() as { id?: string };
-    const fileId = uploadData.id;
-    console.log(`[Video Gen] 파일 업로드 완료: ${fileId}`);
-
-    // 2단계: 영상 생성 요청
-    const videoRes = await fetch(`${APIYI_BASE}/videos/generations`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model: SORA_MODEL,
-        prompt: motionPrompt,
-        input_reference: fileId,
-        size: '1280x720',
-        seconds: 5,
-      }),
-    });
-
-    if (!videoRes.ok) {
-      const errText = await videoRes.text();
-      throw new Error(`영상 생성 요청 실패: ${videoRes.status} - ${errText}`);
-    }
-
-    const videoData = await videoRes.json() as { id?: string; video_url?: string; status?: string };
-    const videoId = videoData.id;
-
-    if (videoData.video_url) {
-      console.log('[Video Gen] 즉시 완료');
-      return videoData.video_url;
-    }
-
-    // 3단계: 폴링으로 완료 대기
-    if (videoId) {
-      return await pollVideoStatus(videoId, key);
-    }
-
-    throw new Error('영상 ID를 받지 못했습니다');
+    return videoDataUrl;
   } catch (error: any) {
     console.error(`[Video Gen] 영상 생성 실패: ${error.message}`);
     return null;
   }
 }
 
-// data URL 방식 폴백
-async function generateVideoWithDataUrl(
-  imageBase64: string,
-  motionPrompt: string,
-  apiKey: string
+export async function generateVideoFromImageUrl(
+  imageUrl: string,
+  motionPrompt?: string,
+  onProgress?: (msg: string) => void
 ): Promise<string | null> {
-  const raw = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-  const dataUrl = `data:image/png;base64,${raw}`;
+  const apiKey = getFalApiKey();
+  if (!apiKey) return null;
 
-  const videoRes = await fetch(`${APIYI_BASE}/videos/generations`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: SORA_MODEL,
-      prompt: motionPrompt,
-      input_reference: dataUrl,
-      size: '1280x720',
-      seconds: 5,
-    }),
-  });
+  const modelId = getVideoModelId();
 
-  if (!videoRes.ok) {
-    const errText = await videoRes.text();
-    throw new Error(`영상 생성 실패: ${videoRes.status} - ${errText}`);
-  }
-
-  const videoData = await videoRes.json() as { id?: string; video_url?: string };
-
-  if (videoData.video_url) return videoData.video_url;
-  if (videoData.id) return await pollVideoStatus(videoData.id, apiKey);
-
-  throw new Error('영상 생성 응답에서 ID/URL을 찾을 수 없습니다');
-}
-
-// 영상 생성 상태 폴링
-async function pollVideoStatus(videoId: string, apiKey: string): Promise<string | null> {
-  const maxAttempts = 60; // 최대 5분 (5초 * 60)
-
-  for (let i = 0; i < maxAttempts; i++) {
-    await new Promise(r => setTimeout(r, 5000)); // 5초 대기
-
-    const statusRes = await fetch(`${APIYI_BASE}/videos/${videoId}`, {
-      headers: { 'Authorization': `Bearer ${apiKey}` },
+  try {
+    onProgress?.('[Video Gen] 영상 생성 요청 중... (1~3분 소요)');
+    const videoUrl = await submitVideoGeneration(modelId, {
+      image_url: imageUrl,
+      prompt: motionPrompt || 'gentle subtle cartoon animation, slight character movement',
+      duration: 5,
+      resolution: '720p',
     });
 
-    if (!statusRes.ok) {
-      console.warn(`[Video Gen] 상태 확인 실패: ${statusRes.status}`);
-      continue;
-    }
-
-    const statusData = await statusRes.json() as { status?: string; video_url?: string; error?: any };
-    console.log(`[Video Gen] 폴링 ${i + 1}/${maxAttempts}: ${statusData.status}`);
-
-    if (statusData.status === 'completed' && statusData.video_url) {
-      console.log('[Video Gen] 영상 생성 완료!');
-      return statusData.video_url;
-    }
-
-    if (statusData.status === 'failed') {
-      throw new Error(`영상 생성 실패: ${JSON.stringify(statusData.error)}`);
-    }
+    onProgress?.('[Video Gen] 영상 다운로드 중...');
+    return await videoUrlToBase64(videoUrl);
+  } catch (error: any) {
+    console.error(`[Video Gen] 영상 생성 실패: ${error.message}`);
+    return null;
   }
-
-  throw new Error('영상 생성 시간 초과 (5분)');
 }
 
-// 호환성을 위한 fetch 함수
+// 호환성을 위한 fetch 함수 (URL → base64)
 export async function fetchVideoAsBase64(videoUrl: string): Promise<string | null> {
   try {
-    const res = await fetch(videoUrl);
-    const blob = await res.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-      reader.readAsDataURL(blob);
-    });
+    const dataUrl = await videoUrlToBase64(videoUrl);
+    return (dataUrl && dataUrl.includes(',')) ? dataUrl.split(',')[1] : null;
   } catch {
     return null;
   }

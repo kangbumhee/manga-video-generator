@@ -46,6 +46,30 @@ export const GEMINI_STYLE_CATEGORIES = [
 
 export type GeminiStyleId = typeof GEMINI_STYLE_CATEGORIES[number]['styles'][number]['id'] | 'gemini-custom' | 'gemini-none';
 
+// 영상 생성 모델 (FAL.ai)
+export const VIDEO_MODELS = {
+  'seedance-lite': {
+    id: 'fal-ai/bytedance/seedance/v1/lite/image-to-video',
+    name: 'Seedance 1.0 Lite',
+    costPer5s: 0.18,
+    description: '만화/카툰 최적, 최저가',
+  },
+  'pixverse-v4': {
+    id: 'fal-ai/pixverse/v4/image-to-video',
+    name: 'PixVerse v4',
+    costPer5s: 0.20,
+    description: '범용 무난',
+  },
+  'pixverse-v5.6': {
+    id: 'fal-ai/pixverse/v5.6/image-to-video',
+    name: 'PixVerse v5.6',
+    costPer5s: 0.45,
+    description: '최신 고품질',
+  },
+} as const;
+
+export type VideoModelId = keyof typeof VIDEO_MODELS;
+
 // 가격 정보 (USD)
 export const PRICING = {
   // 환율 (USD → KRW)
@@ -59,10 +83,10 @@ export const PRICING = {
   TTS: {
     perCharacter: 0.00003,  // 약 $0.03/1000자 (추정)
   },
-  // 영상 생성 (PixVerse)
+  // 영상 생성 (FAL.ai - 기본 Seedance Lite)
   VIDEO: {
-    perVideo: 0.15,  // $0.15/video (5초)
-  }
+    perVideo: 0.18,  // Seedance Lite 720p 5초 기준 $0.18/클립
+  },
 } as const;
 
 // USD를 KRW로 변환
@@ -74,6 +98,13 @@ export function toKRW(usd: number): number {
 export function formatKRW(usd: number): string {
   const krw = toKRW(usd);
   return krw.toLocaleString('ko-KR') + '원';
+}
+
+// 선택된 영상 모델의 5초당 비용 (USD)
+export function getVideoModelCost(): number {
+  const id = (typeof localStorage !== 'undefined' ? localStorage.getItem('tubegen_video_model') : null) || 'seedance-lite';
+  const model = VIDEO_MODELS[id as VideoModelId];
+  return model?.costPer5s ?? VIDEO_MODELS['seedance-lite'].costPer5s;
 }
 
 // ElevenLabs 자막(타임스탬프) 지원 모델 목록
@@ -120,7 +151,8 @@ export const CONFIG = {
     ELEVENLABS_API_KEY: 'tubegen_el_key',
     ELEVENLABS_VOICE_ID: 'tubegen_el_voice',
     ELEVENLABS_MODEL: 'tubegen_el_model',
-    FAL_API_KEY: 'tubegen_fal_key',  // PixVerse 영상 변환용
+    FAL_API_KEY: 'tubegen_fal_key',  // FAL.ai 영상 변환용 (Seedance/PixVerse)
+    VIDEO_MODEL: 'tubegen_video_model',  // seedance-lite | pixverse-v4 | pixverse-v5.6
     IMAGE_MODEL: 'tubegen_image_model',
     // Gemini 전용 화풍 설정
     GEMINI_STYLE: 'tubegen_gemini_style',
